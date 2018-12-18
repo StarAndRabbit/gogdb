@@ -155,8 +155,8 @@ def formatter_parse(fmter_data):
 
 @db_session
 def image_parse(game_detail, image_data):
-    if select(img for img in Image if img.game == game_detail).exists():
-        img = select(img for img in Image if img.game == game_detail)[:][0]
+    if game_detail.image:
+        img = game_detail.image
         if img.href != image_data['href']:
             img.href = image_data['href']
     else:
