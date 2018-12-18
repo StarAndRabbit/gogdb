@@ -295,7 +295,7 @@ def gamedetail_parse(gameid, json_data):
                 averageRating = API.get_game_rating(gameid),
                 lastUpdate = datetime.utcnow())
         if 'globalReleaseDate' in product_data:
-            globalReleaseDate = dateutil.parser.parse(re.sub('\+.*', '', product_data['globalReleaseDate'])),
+            game.globalReleaseDate = dateutil.parser.parse(re.sub('\+.*', '', product_data['globalReleaseDate'])),
 
     game.links = link_parse(game, json_data['_links'])
     game.publishers = publisher_parse(embedded_data['publisher'])
