@@ -1,6 +1,7 @@
 from gogapi import API
 from dbmodel import *
 import dateutil.parser, re
+from datetime import datetime
 
 @db_session
 def region_parse():
@@ -109,6 +110,18 @@ def feature_parse(feature_data):
             features.append(Feature(id = feature['id'], name = feature['name']))
 
     return features
+
+
+@db_session
+def tag_parse(tag_data):
+    tags = list()
+    for tag in tag_data:
+        if select(tg for tg in Tag if tg.id == tag['id']).exists():
+            tags.append(select(tg for tg in Tag if tg.id == tag['id'])[:][0])
+        else:
+            tags.append(Tag(id = tag['id'], name = tag['name']))
+
+    return tags
 
 
 @db_session
@@ -223,6 +236,8 @@ def gamedetail_parse(gameid, json_data):
     if select(game for game in GameDetail if game.id == gameid).exists():
         game = select(game for game in GameDetail if game.id == gameid)[:][0]
 
+        game.lastUpdate = datetime.utcnow()
+
         if game.inDevelopment != json_data['inDevelopment']['active']:
             game.inDevelopment = json_data['inDevelopment']['active']
 
@@ -277,7 +292,8 @@ def gamedetail_parse(gameid, json_data):
                 hasProductCard = product_data['hasProductCard'],
                 isSecret = product_data['isSecret'],
                 productType = embedded_data['productType'],
-                averageRating = API.get_game_rating(gameid))
+                averageRating = API.get_game_rating(gameid),
+                lastUpdate = datetime.utcnow())
         if 'globalReleaseDate' in product_data:
             globalReleaseDate = dateutil.parser.parse(re.sub('\+.*', '', product_data['globalReleaseDate'])),
 
@@ -286,6 +302,7 @@ def gamedetail_parse(gameid, json_data):
     game.developers = developer_parse(embedded_data['developers'])
     game.supportedOS = os_parse(embedded_data['supportedOperatingSystems'])
     game.features = feature_parse(embedded_data['features'])
+    game.tags = tag_parse(embedded_data['tags'])
     game.localizations = localization_parse(embedded_data['localizations'])
     if product_data['_links']['image']['href']:
         game.image = image_parse(game, product_data['_links']['image'])
