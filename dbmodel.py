@@ -1,6 +1,5 @@
 from datetime import datetime
 from decimal import Decimal
-from pony.converting import str2datetime
 from pony.orm import *
 
 
@@ -22,17 +21,18 @@ class GameDetail(db.Entity):
     productType = Required(str)
     globalReleaseDate = Optional(datetime)
     averageRating = Optional(Decimal)
+    additionalRequirements = Optional(str)
     links = Optional('GameLink')
     publishers = Set('Publisher')
     developers = Set('Developer')
     supportedOS = Set('OS')
     features = Set('Feature')
+    tags = Set('Tag')
     discount = Set('Discount')
     countries = Set('Country')
     basePrice = Set('BasePrice')
     localizations = Set('Localization')
     image = Optional('Image')
-    additionalRequirements = Optional(str)
     requiresGames = Set('GameDetail', reverse='requiredByGames')
     requiredByGames = Set('GameDetail', reverse='requiresGames')
     includesGames = Set('GameDetail', reverse='includedInGames')
@@ -41,6 +41,7 @@ class GameDetail(db.Entity):
     videos = Set('Video')
     editions = Set('GameDetail', reverse='editions')
     changeRecord = Set('ChangeRecord')
+    lastUpdate = Required(datetime)
 
 
 class GameLink(db.Entity):
@@ -149,3 +150,8 @@ class ChangeRecord(db.Entity):
     change = Required(str)
     PrimaryKey(game, dateTime)
 
+
+class Tag(db.Entity):
+    id = PrimaryKey(int, auto=True)
+    name = Required(str)
+    games = Set(GameDetail)
