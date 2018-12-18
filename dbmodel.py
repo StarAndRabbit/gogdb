@@ -4,6 +4,13 @@ from pony.orm import *
 
 
 db = Database()
+dblite = Database()
+
+
+class GameList(dblite.Entity):
+    id = PrimaryKey(int)
+    isRefresh = Required(bool, default=False)
+    isException = Required(bool, default=False)
 
 
 class GameDetail(db.Entity):
