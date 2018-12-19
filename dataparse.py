@@ -3,6 +3,20 @@ from dbmodel import *
 import dateutil.parser, re
 from datetime import datetime
 
+
+@db_session
+def gamelist_parse():
+    all_game_id = API.get_all_game_id()
+    for gameid in all_game_id:
+        if GameList[gameid]:
+            GameList[gameid].isRefresh = False
+            GameList[gameid].isException = False
+        else:
+            GameList(id=gameid)
+
+    return all_game_id
+
+
 @db_session
 def region_parse():
     region_table = API.get_region_table()
@@ -266,8 +280,8 @@ def gamedetail_parse(gameid, json_data):
             game.isSecret = product_data['isSecret']
 
         if 'globalReleaseDate' in product_data:
-            if game.globalReleaseDate != dateutil.parser.parse(re.sub('\+.*', '', product_data['globalReleaseDate'])):
-                game.globalReleaseDate = dateutil.parser.parse(re.sub('\+.*', '', product_data['globalReleaseDate']))
+            if game.globalReleaseDate != dateutil.parser.parse(product_data['globalReleaseDate']).replace(tzinfo=None):
+                game.globalReleaseDate = dateutil.parser.parse(product_data['globalReleaseDate']).replace(tzinfo=None)
 
         if game.title != product_data['title']:
             game.title = product_data['title']
@@ -277,6 +291,10 @@ def gamedetail_parse(gameid, json_data):
 
         if game.averageRating != API.get_game_rating(gameid):
             game.averageRating = API.get_game_rating(gameid)
+
+        if 'additionalRequirements' in json_data:
+            if game.additionalRequirements != json_data['additionalRequirements'].strip():
+                game.additionalRequirements = json_data['additionalRequirements'].strip()
 
     else:
         game = GameDetail(
@@ -295,7 +313,9 @@ def gamedetail_parse(gameid, json_data):
                 averageRating = API.get_game_rating(gameid),
                 lastUpdate = datetime.utcnow())
         if 'globalReleaseDate' in product_data:
-            game.globalReleaseDate = dateutil.parser.parse(re.sub('\+.*', '', product_data['globalReleaseDate'])),
+            game.globalReleaseDate = dateutil.parser.parse(product_data['globalReleaseDate']).replace(tzinfo=None)
+        if 'additionalRequirements' in json_data:
+            game.additionalRequirements = json_data['additionalRequirements'].strip()
 
     game.links = link_parse(game, json_data['_links'])
     game.publishers = publisher_parse(embedded_data['publisher'])
@@ -344,24 +364,12 @@ def gamedetail_parse(gameid, json_data):
 
     return game
 
-'''
 @db_session
-def editions_parse(gameid, json_data):
-    print('now fill %s editions' % gameid)
-    edition_data = json_data['_embedded']['editions']
-    if len(edition_data) > 0:
-        editions = list()
-        for edition in edition_data:
-            if select(game for game in GameDetail if game.id == edition['id']).exists():
-                editions.append(GameDetail[edition['id']])
-        GameDetail[gameid].editions = editions
-        return editions
-    else:
-        return list()
-'''
-
-def safe_game_parse(gameid, json_data):
+def safe_game_parse(gameid):
     try:
+        json_data = API.get_game_data(gameid)
         gamedetail_parse(gameid, json_data)
     except Exception,exp:
-        print(exp)
+        print('read %d catch exception' % gameid)
+        GameList[gameid].isException = True
+

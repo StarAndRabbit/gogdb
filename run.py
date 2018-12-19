@@ -7,17 +7,20 @@ from multiprocessing.dummy import Pool as ThreadPool
 import time
 
 if __name__ == '__main__':
-    db.bind('mysql', host='127.0.0.1', user='gogdb', passwd='gogdb', db='gogdb')
+
+    db.bind('postgres', host='127.0.0.1', user='gogdb', password='gogdb', database='gogdb')
     db.generate_mapping(create_tables=True)
+
+    dblite.bind('sqlite', 'gamelist.db', create_db=True)
+    dblite.generate_mapping(create_tables=True)
 
     region_parse()
 
     start = time.time()
 
-    gamedetail_parse(1, API.get_game_data(1))
-    all_game_id = API.get_all_game_id()
+    all_game_id = gamelist_parse()
     pool = ThreadPool(8)
-    pool.map(lambda gameid: safe_game_parse(gameid, API.get_game_data(gameid)), all_game_id)
+    pool.map(lambda gameid: safe_game_parse(gameid), all_game_id)
 
     usage = time.time() - start
     print('time usage: %f ' % usage)
