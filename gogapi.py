@@ -119,7 +119,13 @@ class API(object):
     @staticmethod
     def get_game_discount(game_id, country_code='US'):
         price_data = API.get_game_price(game_id, country_code)
-        return int(round(1.0 - price_data['finalPrice'] / price_data['basePrice'], 2) * 100)
+        if price_data['basePrice'] != None:
+            if price_data['finalPrice'] == 0:
+                return 100
+            else:
+                return int(round(1.0 - price_data['finalPrice'] / price_data['basePrice'], 2) * 100)
+        else:
+            return None
 
     @staticmethod
     def get_region_table():
