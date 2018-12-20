@@ -254,6 +254,24 @@ def discount_parse(game_detail):
 
 
 @db_session
+def baseprice_parse(game_detail):
+    countries = select(ct.code for ct in Country)[:]
+    bp_now = API.get_game_global_price(game_detail.id, countries)
+    for bp in bp_now:
+        if bp['basePrice'] != None:
+            if select(pr for pr in BasePrice if pr.game == game_detail
+                    and pr.country == Country[bp['country']]).exists():
+                game_price = get(pr for pr in BasePrice if pr.game == game_detail
+                        and pr.country == Country[bp['country']])
+                if game_price.currency != bp['currency']:
+                    game_price.currency = bp['currency']
+                if game_price.price != bp['basePrice']:
+                    game_price.price = bp['basePrice']
+            else:
+                BasePrice(game=game_detail, country=Country[bp['country']], price=bp['basePrice'], currency=bp['currency'])
+
+
+@db_session
 def gamedetail_parse(gameid, json_data):
     print('now read game %s' % gameid)
 
