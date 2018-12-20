@@ -88,7 +88,7 @@ class Feature(db.Entity):
 class Discount(db.Entity):
     game = Required(GameDetail)
     dateTime = Required(datetime)
-    discount = Required(Decimal)
+    discount = Optional(Decimal)
     PrimaryKey(game, dateTime)
 
 
