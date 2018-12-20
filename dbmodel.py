@@ -102,8 +102,8 @@ class Country(db.Entity):
 class BasePrice(db.Entity):
     game = Required(GameDetail)
     country = Required(Country)
-    price = Required(Decimal)
-    currency = Required(str)
+    price = Optional(Decimal)
+    currency = Optional(str)
     PrimaryKey(game, country)
 
 
