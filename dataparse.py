@@ -8,7 +8,7 @@ from datetime import datetime
 def gamelist_parse():
     all_game_id = API.get_all_game_id()
     for gameid in all_game_id:
-        if GameList[gameid]:
+        if select(game for game in GameList if game.id == gameid).exists():
             GameList[gameid].isRefresh = False
             GameList[gameid].isException = False
         else:
@@ -85,7 +85,7 @@ def link_parse(game_detail, link_data):
 @db_session
 def publisher_parse(puber_data):
     if select(puber for puber in Publisher if puber.name == puber_data['name'].strip()).exists():
-        return select(puber for puber in Publisher if puber.name == puber_data['name'].strip())[:][0]
+        return get(puber for puber in Publisher if puber.name == puber_data['name'].strip())
     else:
         return Publisher(name = puber_data['name'].strip())
 
@@ -95,7 +95,7 @@ def developer_parse(dever_data):
     devers = list()
     for dever in dever_data:
         if select(dev for dev in Developer if dev.name == dever['name'].strip()).exists():
-            devers.append(select(dev for dev in Developer if dev.name == dever['name'].strip())[:][0])
+            devers.append(get(dev for dev in Developer if dev.name == dever['name'].strip()))
         else:
             devers.append(Developer(name = dever['name'].strip()))
 
@@ -107,7 +107,7 @@ def os_parse(os_data):
     oss = list()
     for os in os_data:
         if select(sys for sys in OS if sys.name == os['operatingSystem']['name']).exists():
-            oss.append(select(sys for sys in OS if sys.name == os['operatingSystem']['name'])[:][0])
+            oss.append(get(sys for sys in OS if sys.name == os['operatingSystem']['name']))
         else:
             oss.append(OS(name = os['operatingSystem']['name']))
 
@@ -119,7 +119,7 @@ def feature_parse(feature_data):
     features = list()
     for feature in feature_data:
         if select(fe for fe in Feature if fe.id == feature['id']).exists():
-            features.append(select(fe for fe in Feature if fe.id == feature['id'])[:][0])
+            features.append(get(fe for fe in Feature if fe.id == feature['id']))
         else:
             features.append(Feature(id = feature['id'], name = feature['name']))
 
@@ -131,7 +131,7 @@ def tag_parse(tag_data):
     tags = list()
     for tag in tag_data:
         if select(tg for tg in Tag if tg.id == tag['id']).exists():
-            tags.append(select(tg for tg in Tag if tg.id == tag['id'])[:][0])
+            tags.append(get(tg for tg in Tag if tg.id == tag['id']))
         else:
             tags.append(Tag(id = tag['id'], name = tag['name']))
 
@@ -144,8 +144,8 @@ def localization_parse(loc_data):
     for loc in loc_data:
         if select(lc for lc in Localization if lc.code == loc['_embedded']['language']['code']
                 and lc.type == loc['_embedded']['localizationScope']['type']).exists():
-            locs.append(select(lc for lc in Localization if lc.code == loc['_embedded']['language']['code']
-                and lc.type == loc['_embedded']['localizationScope']['type'])[:][0])
+            locs.append(get(lc for lc in Localization if lc.code == loc['_embedded']['language']['code']
+                and lc.type == loc['_embedded']['localizationScope']['type']))
         else:
             locs.append(Localization(
                 code = loc['_embedded']['language']['code'],
@@ -160,7 +160,7 @@ def formatter_parse(fmter_data):
     fmters = list()
     for fmter in fmter_data:
         if select(fmt for fmt in Formatter if fmt.formatter == fmter).exists():
-            fmters.append(select(fmt for fmt in Formatter if fmt.formatter == fmter)[:][0])
+            fmters.append(get(fmt for fmt in Formatter if fmt.formatter == fmter))
         else:
             fmters.append(Formatter(formatter=fmter))
 
@@ -186,7 +186,7 @@ def screenshot_parse(game_detail, scshot_data):
     scid = 0
     for scshot in scshot_data:
         if select(sc for sc in Screenshot if sc.id == scid and sc.game == game_detail).exists():
-            sc = select(sc for sc in Screenshot if sc.id == scid and sc.game == game_detail)[:][0]
+            sc = get(sc for sc in Screenshot if sc.id == scid and sc.game == game_detail)
             if sc.href != scshot['_links']['self']['href']:
                 sc.href = scshot['_links']['self']['href']
         else:
@@ -202,7 +202,7 @@ def screenshot_parse(game_detail, scshot_data):
 @db_session
 def videoprovider_parse(video_data):
     if select(pvder for pvder in VideoProvider if pvder.provider == video_data['provider']).exists():
-        return select(pvder for pvder in VideoProvider if pvder.provider == video_data['provider'])[:][0]
+        return get(pvder for pvder in VideoProvider if pvder.provider == video_data['provider'])
     else:
         videohref = video_data['_links']['self']['href'].replace(video_data['videoId'], '{videoId}')
         tmbhref = video_data['_links']['thumbnail']['href'].replace(video_data['thumbnailId'], '{thumbnailId}')
@@ -218,7 +218,7 @@ def video_parse(game_detail, videos_data):
     videoid = 0
     for video_data in videos_data:
         if select(vid for vid in Video if vid.id == videoid and vid.game == game_detail).exists():
-            vid = select(vid for vid in Video if vid.id == videoid and vid.game == game_detail)[:][0]
+            vid = get(vid for vid in Video if vid.id == videoid and vid.game == game_detail)
             if vid.videoId != video_data['videoId']:
                 vid.videoId = video_data['videoId']
             if vid.thumbnailId != video_data['thumbnailId']:
@@ -241,6 +241,19 @@ def video_parse(game_detail, videos_data):
 
 
 @db_session
+def discount_parse(game_detail):
+    dis_now = API.get_game_discount(game_detail.id)
+    if game_detail.discount:
+        dis_lst = select(dis for dis in Discount if dis.game == game_detail).order_by(desc(Discount.dateTime))[:][0]
+        if dis_lst.discount != dis_now:
+            return Discount(game=game_detail, dateTime=datetime.utcnow(), discount=dis_now)
+        else:
+            return dis_lst
+    else:
+        return Discount(game=game_detail, dateTime=datetime.utcnow(), discount=dis_now)
+
+
+@db_session
 def gamedetail_parse(gameid, json_data):
     print('now read game %s' % gameid)
 
@@ -248,7 +261,7 @@ def gamedetail_parse(gameid, json_data):
     product_data = embedded_data['product']
 
     if select(game for game in GameDetail if game.id == gameid).exists():
-        game = select(game for game in GameDetail if game.id == gameid)[:][0]
+        game = get(game for game in GameDetail if game.id == gameid)
 
         game.lastUpdate = datetime.utcnow()
 
@@ -362,7 +375,9 @@ def gamedetail_parse(gameid, json_data):
                     editions.append(gamedetail_parse(edition['id'], json_data))
         game.editions = editions
 
+    discount_parse(game)
     return game
+
 
 @db_session
 def safe_game_parse(gameid):
@@ -372,4 +387,5 @@ def safe_game_parse(gameid):
     except Exception,exp:
         print('read %d catch exception' % gameid)
         GameList[gameid].isException = True
+        print(exp)
 
