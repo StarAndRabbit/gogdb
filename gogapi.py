@@ -61,7 +61,7 @@ class API(object):
         req_sess = requests.Session()
         req_sess.mount('https://', HTTPAdapter(max_retries=RETRIES))
         pages = json.loads(req_sess.get(API.host, timeout=TIMEOUT).text)['pages']
-        pages = range(1, pages)
+        pages = range(1, pages+1)
         urls = [API.host + '?limit=50&page=' + str(p) for p in pages]
         rs = (grequests.get(u, timeout=TIMEOUT, session=req_sess) for u in urls)
         results = grequests.map(rs)
@@ -156,8 +156,7 @@ class API(object):
     '''
 
     @staticmethod
-    def get_game_global_price(game_id):
-        countries = API.get_region_table().keys()
+    def get_game_global_price(game_id, countries):
         host = 'https://api.gog.com/products/' + str(game_id) + '/prices?countryCode={country}'
         urls = [host.replace('{country}', cty) for cty in countries]
 
