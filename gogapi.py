@@ -3,9 +3,6 @@ from requests.adapters import HTTPAdapter
 from multiprocessing.dummy import Pool as ThreadPool
 import grequests, re
 
-RETRIES=5
-TIMEOUT=5
-
 
 class utility():
     @staticmethod
@@ -245,8 +242,11 @@ if __name__ == '__main__':
     api = API()
     print("Games on GOG in total: %s" %(api.get_total_num()))
     start = time.time()
-
-    print(list(api.get_game_price([1,2,3,4,5,6,7,8,9,10])))
-
-    usage = time.time() - start
-    print('time usage: %f' % usage)
+    list(api.get_game_price([1,2,3,4,5,6,7,8,9,10]))
+    print('get 10 games price time usage: %f' %(time.time() - start))
+    start = time.time()
+    list(api.get_game_data([1,2,3,4,5,6,7,8,9,10]))
+    print('get 10 games data time usage: %f' %(time.time() - start))
+    start = time.time()
+    list(api.get_multi_game_global_price([1,2,3,4,5,6,7,8,9,10], api.get_region_table().keys()))
+    print('get 10 games price in 240 countries time usage: %f' %(time.time() - start))
