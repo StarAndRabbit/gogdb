@@ -31,16 +31,24 @@ class utility():
 
 
 class API(object):
-    host = 'https://api.gog.com/v2/games'
 
     def __init__(self):
-        self._host = 'https://api.gog.com/v2/games'
+        self._hosts = dict()
+        self._hosts['detail'] = 'https://api.gog.com/v2/games'
+        self._hosts['price'] = 'https://api.gog.com/products/{gameid}/prices'
+        self._hosts['multiprice'] = 'https://api.gog.com/products/prices'
+        self._hosts['region'] = 'https://countrycode.org/api/countryCode/countryMenu'
+        self._hosts['rating'] = 'https://reviews.gog.com/v1/products/{gameid}/averageRating?reviewer=verified_owner'
         self._timeout = 5
         self._retries = 5
         self._req_sess = requests.Session()
         self._req_sess.mount('https://', HTTPAdapter(max_retries=self._retries))
         self._req_sess.mount('http://', HTTPAdapter(max_retries=self._retries))
 
+
+    @property
+    def hosts(self):
+        return self._hosts
 
     @property
     def timeout(self):
@@ -64,7 +72,7 @@ class API(object):
 
 
     def get_total_num(self):
-        fst_page_data = self._req_sess.get(self.host, timeout=self.timeout).json()
+        fst_page_data = self._req_sess.get(self.hosts['detail'], timeout=self.timeout).json()
         limit = fst_page_data['limit']
         pages = fst_page_data['pages']
 
@@ -74,7 +82,7 @@ class API(object):
 
     def get_game_id_in_page(self, page, limit):
         payload = {'page':page, 'limit':limit, 'locale':'en-US'}
-        page_data = self._req_sess.get(self.host, params=payload, timeout=self.timeout).json()
+        page_data = self._req_sess.get(self.hosts['detail'], params=payload, timeout=self.timeout).json()
         items = page_data['_embedded']['items']
 
         for item in items:
@@ -82,9 +90,9 @@ class API(object):
 
 
     def get_all_game_id(self):
-        pages = self._req_sess.get(self.host, timeout=self.timeout).json()['pages']
+        pages = self._req_sess.get(self.hosts['detail'], timeout=self.timeout).json()['pages']
         pages = range(1, pages+1)
-        urls = [self.host + '?limit=50&page=' + str(p) for p in pages]
+        urls = [self.hosts['detail'] + '?limit=50&page=' + str(p) for p in pages]
         rs = (grequests.get(u, timeout=self.timeout, session=self._req_sess) for u in urls)
         results = grequests.map(rs)
 
@@ -98,9 +106,9 @@ class API(object):
         payload = {'locale':'en-US'}
 
         if type(game_id) == type(int()) or type(game_id) == type(str()):
-            yield self._req_sess.get(self.host + '/' + str(game_id), params=payload, timeout=self.timeout).json()
+            yield self._req_sess.get(self.hosts['detail'] + '/' + str(game_id), params=payload, timeout=self.timeout).json()
         elif type(game_id) == type(list()) or type(game_id) == type(tuple()):
-            urls = [self.host + '/' + str(gid) for gid in game_id]
+            urls = [self.hosts['detail'] + '/' + str(gid) for gid in game_id]
             rs = (grequests.get(u, timeout=self.timeout, session=self._req_sess, params=payload) for u in urls)
             results = grequests.map(rs)
             for rep in results:
@@ -111,14 +119,14 @@ class API(object):
 
     def get_game_price(self, game_id, country_code='US'):
         if type(game_id) == type(int()) or type(game_id) == type(str()):
-            price_url = 'https://api.gog.com/products/' + str(game_id) + '/prices?countryCode=' + country_code
+            price_url = self.hosts['price'].replace('{gameid}', str(game_id))
+            payload = {'countryCode':country_code}
 
-            price = dict()
-            price_data = self._req_sess.get(price_url, timeout=self.timeout).json()
+            price_data = self._req_sess.get(price_url, timeout=self.timeout, params=payload).json()
             yield utility.price_data_parse(price_data, country_code)
 
         elif type(game_id) == type(list()) or type(game_id) == type(tuple()):
-            price_url = 'https://api.gog.com/products/prices'
+            price_url = self.hosts['multiprice']
             ids = ','.join(str(gid) for gid in game_id)
             payload = {'ids':ids, 'countryCode':country_code}
             price_data = self._req_sess.get(price_url, timeout=self.timeout, params=payload).json()['_embedded']['items']
@@ -171,7 +179,7 @@ class API(object):
 
 
     def get_region_table(self):
-        region_host = 'https://countrycode.org/api/countryCode/countryMenu'
+        region_host = self.hosts['region']
         region_data = self._req_sess.get(region_host, timeout=self.timeout).json()
 
         region_table = {}
@@ -182,10 +190,9 @@ class API(object):
 
 
     def get_game_global_price(self, game_id, countries):
-        host = 'https://api.gog.com/products/' + str(game_id) + '/prices?countryCode={country}'
-        urls = [host.replace('{country}', cty) for cty in countries]
+        price_url = self.hosts['price'].replace('{gameid}', str(game_id))
 
-        rs = (grequests.get(u, timeout=self.timeout, session=self._req_sess) for u in urls)
+        rs = (grequests.get(price_url, timeout=self.timeout, session=self._req_sess, params={'countryCode':ct}) for ct in countries)
         results = grequests.map(rs)
         point = 0
         for r in results:
@@ -198,10 +205,10 @@ class API(object):
     def get_multi_game_global_price(self, game_id, countries):
         if type(game_id) != type(list()) and type(game_id) != type(tuple()):
             raise TypeError('Invalid Type')
-        host = 'https://api.gog.com/products/prices'
+
         ids = ','.join(str(gid) for gid in game_id)
 
-        rs = (grequests.get(host, timeout=self.timeout, session=self._req_sess,
+        rs = (grequests.get(self.hosts['multiprice'], timeout=self.timeout, session=self._req_sess,
             params={'ids':ids, 'countryCode':country}) for country in countries)
         results = grequests.map(rs)
 
@@ -225,11 +232,10 @@ class API(object):
 
 
     def get_game_rating(self, game_id):
-        host = 'https://reviews.gog.com/v1/products/{gameid}/averageRating?reviewer=verified_owner'
         if type(game_id) == type(int()) or type(game_id) == type(str()):
-            yield self._req_sess.get(host.replace('{gameid}', str(game_id)), timeout=self.timeout).json()['value']
+            yield self._req_sess.get(self.hosts['rating'].replace('{gameid}', str(game_id)), timeout=self.timeout).json()['value']
         elif type(game_id) == type(list()) or type(game_id) == type(tuple()):
-            urls = [host.replace('{gameid}', str(gid)) for gid in game_id]
+            urls = [self.hosts['rating'].replace('{gameid}', str(gid)) for gid in game_id]
             rs = (grequests.get(u, timeout=self.timeout, session=self._req_sess) for u in urls)
             results = grequests.map(rs)
             for r in results:
