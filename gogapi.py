@@ -2,6 +2,7 @@ import requests, json
 from requests.adapters import HTTPAdapter
 from multiprocessing.dummy import Pool as ThreadPool
 import grequests, re
+from fake_useragent import UserAgent
 
 
 class utility():
@@ -50,10 +51,15 @@ class API(object):
         self._hosts['rating'] = 'https://reviews.gog.com/v1/products/{gameid}/averageRating?reviewer=verified_owner'
         self._timeout = 5
         self._retries = 5
-        self._req_sess = requests.Session()
-        self._req_sess.mount('https://', HTTPAdapter(max_retries=self._retries))
-        self._req_sess.mount('http://', HTTPAdapter(max_retries=self._retries))
+        self._sess = requests.Session()
+        self._sess.mount('https://', HTTPAdapter(max_retries=self._retries))
+        self._sess.mount('http://', HTTPAdapter(max_retries=self._retries))
+        self._ua = UserAgent()
 
+    @property
+    def _req_sess(self):
+        self._sess.headers.update({'User-Agent':self._ua.random})
+        return self._sess
 
     @property
     def hosts(self):

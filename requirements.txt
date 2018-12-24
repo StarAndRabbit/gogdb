@@ -3,3 +3,4 @@ grequests
 pony
 python-dateutil
 psycopg2-binary
+fake-useragent
