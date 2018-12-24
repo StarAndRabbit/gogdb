@@ -14,20 +14,29 @@ class utility():
             return None
 
     @staticmethod
-    def price_data_parse(price_data, country):
+    def price_data_parse(gameid, price_data, country):
         if price_data == None:
-            return {'currency':'', 'basePrice':None, 'finalPrice':None, 'country':country}
+            return {'gameId':gameid,
+                    'currency':'',
+                    'basePrice':None,
+                    'finalPrice':None,
+                    'country':country}
         else:
             if '_embedded' in price_data:
                 price_data = price_data['_embedded']['prices'][0]
                 price = dict()
+                price['gameId'] = gameid
                 price['currency'] = price_data['currency']['code']
                 price['basePrice'] = round(int(price_data['basePrice'].split(' ')[0]) * 0.01, 2)
                 price['finalPrice'] = round(int(price_data['finalPrice'].split(' ')[0]) * 0.01, 2)
                 price['country'] = country
                 return price
             else:
-                return {'currency':'', 'basePrice':None, 'finalPrice':None, 'country':country}
+                return {'gameId':gameid,
+                        'currency':'',
+                        'basePrice':None,
+                        'finalPrice':None,
+                        'country':country}
 
 
 class API(object):
@@ -69,6 +78,13 @@ class API(object):
         if type(value) != type(int()):
             raise TypeError('Invalid Type')
         self._retries = value
+
+
+    def update_proxies(self, proxies):
+        if type(proxies) != type(dict()):
+            raise TypeError('Invalid Type')
+        else:
+            self._req_sess.proxies.update(proxies)
 
 
     def get_total_num(self):
@@ -123,7 +139,7 @@ class API(object):
             payload = {'countryCode':country_code}
 
             price_data = self._req_sess.get(price_url, timeout=self.timeout, params=payload).json()
-            yield utility.price_data_parse(price_data, country_code)
+            yield utility.price_data_parse(game_id, price_data, country_code)
 
         elif type(game_id) == type(list()) or type(game_id) == type(tuple()):
             price_url = self.hosts['multiprice']
@@ -139,11 +155,11 @@ class API(object):
                 for gid in game_id:
                     pdata_now = price_data[gid_point]
                     if str(gid) == utility.get_game_id_from_url(pdata_now['_links']['self']['href']):
-                        price = utility.price_data_parse(pdata_now, country_code)
+                        price = utility.price_data_parse(gid, pdata_now, country_code)
                         gid_point += 1
                         yield price
                     else:
-                        yield utility.price_data_parse(None, country_code)
+                        yield utility.price_data_parse(gid, None, country_code)
         else:
             raise TypeError('Invalid Type')
 
@@ -197,7 +213,7 @@ class API(object):
         point = 0
         for r in results:
             price_data = r.json()
-            price = utility.price_data_parse(price_data, countries[point])
+            price = utility.price_data_parse(utility.get_game_id_from_url(r.url), price_data, countries[point])
             point += 1
             yield price
 
@@ -218,16 +234,16 @@ class API(object):
             price_data = r.json()['_embedded']['items']
             if len(price_data) == 0:
                 for gid in game_id:
-                    yield utility.price_data_parse(None, countries[country_point])
+                    yield utility.price_data_parse(gid, None, countries[country_point])
             else:
                 for gid in game_id:
                     pdata_now = price_data[gid_point]
                     if str(gid) == utility.get_game_id_from_url(pdata_now['_links']['self']['href']):
-                        price = utility.price_data_parse(pdata_now, countries[country_point])
+                        price = utility.price_data_parse(gid, pdata_now, countries[country_point])
                         gid_point += 1
                         yield price
                     else:
-                        yield utility.price_data_parse(None, countries[country_point])
+                        yield utility.price_data_parse(gid, None, countries[country_point])
             country_point += 1
 
 
