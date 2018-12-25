@@ -1,7 +1,7 @@
 import requests, json
 from requests.adapters import HTTPAdapter
 from multiprocessing.dummy import Pool as ThreadPool
-import grequests, re
+import grequests, re, logging
 from fake_useragent import UserAgent
 
 
@@ -55,6 +55,12 @@ class API(object):
         self._sess.mount('https://', HTTPAdapter(max_retries=self._retries))
         self._sess.mount('http://', HTTPAdapter(max_retries=self._retries))
         self._ua = UserAgent()
+        self._logger = logging.getLogger('GOGDB.GOGAPI')
+
+
+    @property
+    def logger(self):
+        return self._logger
 
     @property
     def _req_sess(self):
@@ -128,8 +134,11 @@ class API(object):
         payload = {'locale':'en-US'}
 
         if type(game_id) == type(int()) or type(game_id) == type(str()):
+            self._logger.info('read game data, ids=[%s]' % str(game_id))
             yield self._req_sess.get(self.hosts['detail'] + '/' + str(game_id), params=payload, timeout=self.timeout).json()
+
         elif type(game_id) == type(list()) or type(game_id) == type(tuple()):
+            self._logger.info('read game data, ids=[%s]' % ', '.join(str(gid) for gid in game_id))
             urls = [self.hosts['detail'] + '/' + str(gid) for gid in game_id]
             rs = (grequests.get(u, timeout=self.timeout, session=self._req_sess, params=payload) for u in urls)
             results = grequests.map(rs)
@@ -141,6 +150,7 @@ class API(object):
 
     def get_game_price(self, game_id, country_code='US'):
         if type(game_id) == type(int()) or type(game_id) == type(str()):
+            self._logger.info('read game price, ids=[%s]' % str(game_id))
             price_url = self.hosts['price'].replace('{gameid}', str(game_id))
             payload = {'countryCode':country_code}
 
@@ -150,6 +160,7 @@ class API(object):
         elif type(game_id) == type(list()) or type(game_id) == type(tuple()):
             price_url = self.hosts['multiprice']
             ids = ','.join(str(gid) for gid in game_id)
+            self._logger.info('read game price, ids=[%s]' % ids.replace(',', ', '))
             payload = {'ids':ids, 'countryCode':country_code}
             price_data = self._req_sess.get(price_url, timeout=self.timeout, params=payload).json()['_embedded']['items']
 
@@ -171,24 +182,28 @@ class API(object):
 
 
     def get_game_base_price(self, game_id, country_code='US'):
+        self._logger.info('read game base price')
         price_data = self.get_game_price(game_id, country_code)
         for pd in price_data:
             yield pd['basePrice']
 
 
     def get_game_final_price(self, game_id, country_code='US'):
+        self._logger.info('read game final price')
         price_data = self.get_game_price(game_id, country_code)
         for pd in price_data:
             yield pd['finalPrice']
 
 
     def get_game_price_currency(self, game_id, country_code='US'):
+        self._logger.info('read game price currency')
         price_data = self.get_game_price(game_id, country_code)
         for pd in price_data:
             yield pd['currency']
 
 
     def get_game_discount(self, game_id, country_code='US'):
+        self._logger.info('read game discount')
         price_data = self.get_game_price(game_id, country_code)
         for pd in price_data:
             if pd['basePrice'] != None:
@@ -214,6 +229,8 @@ class API(object):
     def get_game_global_price(self, game_id, countries):
         price_url = self.hosts['price'].replace('{gameid}', str(game_id))
 
+        self._logger.info('read game global price, ids=[%s]' % str(game_id))
+
         rs = (grequests.get(price_url, timeout=self.timeout, session=self._req_sess, params={'countryCode':ct}) for ct in countries)
         results = grequests.map(rs)
         point = 0
@@ -229,6 +246,7 @@ class API(object):
             raise TypeError('Invalid Type')
 
         ids = ','.join(str(gid) for gid in game_id)
+        self._logger.info('read game global price, ids=[%s]' % ids.replace(',', ', '))
 
         rs = (grequests.get(self.hosts['multiprice'], timeout=self.timeout, session=self._req_sess,
             params={'ids':ids, 'countryCode':country}) for country in countries)
@@ -267,14 +285,25 @@ class API(object):
 if __name__ == '__main__':
     import time
 
+    logger = logging.getLogger('GOGDB')
+    logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+
     api = API()
-    print("Games on GOG in total: %s" %(api.get_total_num()))
+
+    logger.debug('Games on GOG in total: %s' %(api.get_total_num()))
+
     start = time.time()
     list(api.get_game_price([1,2,3,4,5,6,7,8,9,10]))
-    print('get 10 games price time usage: %f' %(time.time() - start))
+    logger.debug('get 10 games price time usage: %f' %(time.time() - start))
+
     start = time.time()
     list(api.get_game_data([1,2,3,4,5,6,7,8,9,10]))
-    print('get 10 games data time usage: %f' %(time.time() - start))
+    logger.debug('get 10 games data time usage: %f' %(time.time() - start))
+
     start = time.time()
     list(api.get_multi_game_global_price([1,2,3,4,5,6,7,8,9,10], api.get_region_table().keys()))
-    print('get 10 games price in 240 countries time usage: %f' %(time.time() - start))
+    logger.debug('get 10 games price in 240 countries time usage: %f' %(time.time() - start))
