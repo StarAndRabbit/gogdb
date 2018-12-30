@@ -141,7 +141,7 @@ class API(object):
             self._logger.info('read game data, ids=[%s]' % ', '.join(str(gid) for gid in game_id))
             urls = [self.hosts['detail'] + '/' + str(gid) for gid in game_id]
             rs = (grequests.get(u, timeout=self.timeout, session=self._req_sess, params=payload) for u in urls)
-            results = grequests.imap(rs, size=10)
+            results = grequests.map(rs, size=10)
             for rep in results:
                 yield rep.json()
         else:
@@ -208,11 +208,12 @@ class API(object):
         for pd in price_data:
             if pd['basePrice'] != None:
                 if pd['finalPrice'] == 0:
-                    yield 100
+                    yield {'gameId':pd['gameId'], 'discount':100}
                 else:
-                    yield int(round(1.0 - pd['finalPrice'] / pd['basePrice'], 2) * 100)
+                    yield {'gameId':pd['gameId'],
+                            'discount':int(round(1.0 - pd['finalPrice'] / pd['basePrice'], 2) * 100)}
             else:
-                yield None
+                yield {'gameId':pd['gameId'], 'discount':None}
 
 
     def get_region_table(self):
@@ -232,7 +233,7 @@ class API(object):
         self._logger.info('read game global price, ids=[%s]' % str(game_id))
 
         rs = (grequests.get(price_url, timeout=self.timeout, session=self._req_sess, params={'countryCode':ct}) for ct in countries)
-        results = grequests.imap(rs, size=10)
+        results = grequests.map(rs, size=10)
         point = 0
         for r in results:
             price_data = r.json()
@@ -250,7 +251,7 @@ class API(object):
 
         rs = (grequests.get(self.hosts['multiprice'], timeout=self.timeout, session=self._req_sess,
             params={'ids':ids, 'countryCode':country}) for country in countries)
-        results = grequests.imap(rs, size=10)
+        results = grequests.map(rs, size=10)
 
         country_point = 0
         for r in results:
@@ -277,7 +278,7 @@ class API(object):
         elif type(game_id) == type(list()) or type(game_id) == type(tuple()):
             urls = [self.hosts['rating'].replace('{gameid}', str(gid)) for gid in game_id]
             rs = (grequests.get(u, timeout=self.timeout, session=self._req_sess) for u in urls)
-            results = grequests.imap(rs, size=10)
+            results = grequests.map(rs, size=10)
             for r in results:
                 yield r.json()['value']
 
