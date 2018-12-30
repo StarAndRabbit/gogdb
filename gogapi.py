@@ -122,7 +122,7 @@ class API(object):
         pages = range(1, pages+1)
         urls = [self.hosts['detail'] + '?limit=50&page=' + str(p) for p in pages]
         rs = (grequests.get(u, timeout=self.timeout, session=self._req_sess) for u in urls)
-        results = grequests.map(rs)
+        results = grequests.imap(rs, size=10)
 
         for rep in results:
             items = rep.json()['_embedded']['items']
@@ -141,7 +141,7 @@ class API(object):
             self._logger.info('read game data, ids=[%s]' % ', '.join(str(gid) for gid in game_id))
             urls = [self.hosts['detail'] + '/' + str(gid) for gid in game_id]
             rs = (grequests.get(u, timeout=self.timeout, session=self._req_sess, params=payload) for u in urls)
-            results = grequests.map(rs)
+            results = grequests.imap(rs, size=10)
             for rep in results:
                 yield rep.json()
         else:
@@ -232,7 +232,7 @@ class API(object):
         self._logger.info('read game global price, ids=[%s]' % str(game_id))
 
         rs = (grequests.get(price_url, timeout=self.timeout, session=self._req_sess, params={'countryCode':ct}) for ct in countries)
-        results = grequests.map(rs)
+        results = grequests.imap(rs, size=10)
         point = 0
         for r in results:
             price_data = r.json()
@@ -250,7 +250,7 @@ class API(object):
 
         rs = (grequests.get(self.hosts['multiprice'], timeout=self.timeout, session=self._req_sess,
             params={'ids':ids, 'countryCode':country}) for country in countries)
-        results = grequests.map(rs)
+        results = grequests.imap(rs, size=10)
 
         country_point = 0
         for r in results:
@@ -277,7 +277,7 @@ class API(object):
         elif type(game_id) == type(list()) or type(game_id) == type(tuple()):
             urls = [self.hosts['rating'].replace('{gameid}', str(gid)) for gid in game_id]
             rs = (grequests.get(u, timeout=self.timeout, session=self._req_sess) for u in urls)
-            results = grequests.map(rs)
+            results = grequests.imap(rs, size=10)
             for r in results:
                 yield r.json()['value']
 
