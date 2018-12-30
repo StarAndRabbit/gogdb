@@ -1,28 +1,25 @@
-from gogapi import API
+from gogapi import utility
 from dbmodel import *
 import dateutil.parser, re
 from datetime import datetime
 
 
 @db_session
-def gamelist_parse():
-    all_game_id = API.get_all_game_id()
+def gamelist_parse(all_game_id):
     for gameid in all_game_id:
         if select(game for game in GameList if game.id == gameid).exists():
-            GameList[gameid].isRefresh = False
-            GameList[gameid].isException = False
+            continue
         else:
             GameList(id=gameid)
 
-    return all_game_id
-
 
 @db_session
-def region_parse():
-    region_table = API.get_region_table()
+def region_parse(region_table):
     for code in region_table:
-        if not select(region for region in Country if region.code == code).exists():
-            Country(code=code, name=region_table[code])
+        if select(region for region in CountryTable if region.code == code).exists():
+            continue
+        else:
+            CountryTable(code=code, name=region_table[code])
 
 
 @db_session
@@ -241,42 +238,50 @@ def video_parse(game_detail, videos_data):
 
 
 @db_session
-def discount_parse(game_detail):
-    dis_now = API.get_game_discount(game_detail.id)
-    if game_detail.discount:
-        dis_lst = select(dis for dis in Discount if dis.game == game_detail).order_by(desc(Discount.dateTime))[:][0]
-        if dis_lst.discount != dis_now:
-            return Discount(game=game_detail, dateTime=datetime.utcnow(), discount=dis_now)
-        else:
-            return dis_lst
-    else:
-        return Discount(game=game_detail, dateTime=datetime.utcnow(), discount=dis_now)
-
-
-@db_session
-def baseprice_parse(game_detail):
-    countries = select(ct.code for ct in Country)[:]
-    bp_now = API.get_game_global_price(game_detail.id, countries)
-    for bp in bp_now:
-        if bp['basePrice'] != None:
-            if select(pr for pr in BasePrice if pr.game == game_detail
-                    and pr.country == Country[bp['country']]).exists():
-                game_price = get(pr for pr in BasePrice if pr.game == game_detail
-                        and pr.country == Country[bp['country']])
-                if game_price.currency != bp['currency']:
-                    game_price.currency = bp['currency']
-                if game_price.price != bp['basePrice']:
-                    game_price.price = bp['basePrice']
+def discount_parse(discount_data):
+    gameid = discount_data['gameId']
+    discount = discount_data['discount']
+    if select(game for game in GameDetail if game.id == int(gameid)).exists():
+        game = get(game for game in GameDetail if game.id == int(gameid))
+        if game.discount:
+            dis_lst = select(dis for dis in Discount if dis.game == game).order_by(desc(Discount.dateTime))[:][0]
+            if dis_lst.discount != discount:
+                return Discount(game=game, dateTime=datetime.utcnow(), discount=discount)
             else:
-                BasePrice(game=game_detail, country=Country[bp['country']], price=bp['basePrice'], currency=bp['currency'])
+                return dis_lst
+        else:
+            return Discount(game=game, dateTime=datetime.utcnow(), discount=discount)
 
 
 @db_session
-def gamedetail_parse(gameid, json_data):
-    print('now read game %s' % gameid)
+def baseprice_parse(price_data):
+    if price_data['basePrice'] != None:
+        if select(game for game in GameDetail if game.id == int(price_data['gameId'])).exists():
+            if select(bprice for bprice in BasePrice
+                    if bprice.game == GameDetail[int(price_data['gameId'])]
+                    and bprice.country == price_data['country']).exists():
+
+                game_price = get(bprice for bprice in BasePrice
+                        if bprice.game == GameDetail[int(price_data['gameId'])]
+                        and bprice.country == price_data['country'])
+                if game_price.currency != price_data['currency']:
+                    game_price.currency = price_data['currency']
+                if game_price.price != price_data['basePrice']:
+                    game_price.price = price_data['basePrice']
+            else:
+                BasePrice(
+                        game = GameDetail[int(price_data['gameId'])],
+                        country = price_data['country'],
+                        price = price_data['basePrice'],
+                        currency = price_data['currency'])
+
+
+@db_session
+def gamedetail_parse(json_data, lite_mode = False):
 
     embedded_data = json_data['_embedded']
     product_data = embedded_data['product']
+    gameid = product_data['id']
 
     if select(game for game in GameDetail if game.id == gameid).exists():
         game = get(game for game in GameDetail if game.id == gameid)
@@ -320,8 +325,8 @@ def gamedetail_parse(gameid, json_data):
         if game.productType != embedded_data['productType']:
             game.productType = embedded_data['productType']
 
-        if game.averageRating != API.get_game_rating(gameid):
-            game.averageRating = API.get_game_rating(gameid)
+        if game.averageRating != json_data['averageRating']:
+            game.averageRating = json_data['averageRating']
 
         if 'additionalRequirements' in json_data:
             if game.additionalRequirements != json_data['additionalRequirements'].strip():
@@ -341,7 +346,7 @@ def gamedetail_parse(gameid, json_data):
                 hasProductCard = product_data['hasProductCard'],
                 isSecret = product_data['isSecret'],
                 productType = embedded_data['productType'],
-                averageRating = API.get_game_rating(gameid),
+                averageRating = json_data['averageRating'],
                 lastUpdate = datetime.utcnow())
         if 'globalReleaseDate' in product_data:
             game.globalReleaseDate = dateutil.parser.parse(product_data['globalReleaseDate']).replace(tzinfo=None)
@@ -360,50 +365,46 @@ def gamedetail_parse(gameid, json_data):
     game.screenshots = screenshot_parse(game, embedded_data['screenshots'])
     game.videos = video_parse(game, embedded_data['videos'])
 
-    if 'requiresGames' in json_data['_links']:
-        req_games = list()
-        for gid in json_data['_links']['requiresGames']:
-            gid = API.get_game_id_from_url(gid['href'])
-            if gid:
-                if not select(game for game in GameDetail if game.id == gid).exists():
-                    req_games.append(gamedetail_parse(gid, API.get_game_data(gid)))
+    if not lite_mode:
+
+        if 'requiresGames' in json_data['_links']:
+            req_games = list()
+            for gid in json_data['_links']['requiresGames']:
+                gid = utility.get_game_id_from_url(gid['href'])
+                if gid:
+                    if not select(game for game in GameDetail if game.id == gid).exists():
+                        #req_games.append(gamedetail_parse(gid, API.get_game_data(gid)))
+                        continue
+                    else:
+                        req_games.append(GameDetail[gid])
+            game.requiresGames = req_games
+
+        if 'includesGames' in json_data['_links']:
+            inc_games = list()
+            for gid in json_data['_links']['includesGames']:
+                gid = utility.get_game_id_from_url(gid['href'])
+                if gid:
+                    if not select(game for game in GameDetail if game.id == gid).exists():
+                        #inc_games.append(gamedetail_parse(gid, API.get_game_data(gid)))
+                        continue
+                    else:
+                        inc_games.append(GameDetail[gid])
+            game.includesGames = inc_games
+
+        if len(embedded_data['editions']) > 0:
+            editions = list()
+            for edition in embedded_data['editions']:
+                if select(game for game in GameDetail if game.id == edition['id']).exists():
+                    editions.append(GameDetail[edition['id']])
                 else:
-                    req_games.append(GameDetail[gid])
-        game.requiresGames = req_games
+                    '''
+                    json_data = API.get_game_data(edition['id'])
+                    if '_embedded' in json_data:
+                        editions.append(gamedetail_parse(edition['id'], json_data))
+                    '''
+                    continue
+            game.editions = editions
 
-    if 'includesGames' in json_data['_links']:
-        inc_games = list()
-        for gid in json_data['_links']['includesGames']:
-            gid = API.get_game_id_from_url(gid['href'])
-            if gid:
-                if not select(game for game in GameDetail if game.id == gid).exists():
-                    inc_games.append(gamedetail_parse(gid, API.get_game_data(gid)))
-                else:
-                    inc_games.append(GameDetail[gid])
-        game.includesGames = inc_games
-
-    if len(embedded_data['editions']) > 0:
-        editions = list()
-        for edition in embedded_data['editions']:
-            if select(game for game in GameDetail if game.id == edition['id']).exists():
-                editions.append(GameDetail[edition['id']])
-            else:
-                json_data = API.get_game_data(edition['id'])
-                if '_embedded' in json_data:
-                    editions.append(gamedetail_parse(edition['id'], json_data))
-        game.editions = editions
-
-    discount_parse(game)
+        #discount_parse(game)
     return game
-
-
-@db_session
-def safe_game_parse(gameid):
-    try:
-        json_data = API.get_game_data(gameid)
-        gamedetail_parse(gameid, json_data)
-    except Exception,exp:
-        print('read %d catch exception' % gameid)
-        GameList[gameid].isException = True
-        print(exp)
 
