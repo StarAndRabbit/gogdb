@@ -9,8 +9,11 @@ dblite = Database()
 
 class GameList(dblite.Entity):
     id = PrimaryKey(int)
-    isRefresh = Required(bool, default=False)
-    isException = Required(bool, default=False)
+
+
+class CountryTable(dblite.Entity):
+    code = PrimaryKey(str)
+    name = Required(str)
 
 
 class GameDetail(db.Entity):
@@ -36,7 +39,6 @@ class GameDetail(db.Entity):
     features = Set('Feature')
     tags = Set('Tag')
     discount = Set('Discount')
-    countries = Set('Country')
     basePrice = Set('BasePrice')
     localizations = Set('Localization')
     image = Optional('Image')
@@ -92,16 +94,9 @@ class Discount(db.Entity):
     PrimaryKey(game, dateTime)
 
 
-class Country(db.Entity):
-    code = PrimaryKey(str, auto=True)
-    name = Required(str)
-    games = Set(GameDetail)
-    basePrice = Set('BasePrice')
-
-
 class BasePrice(db.Entity):
     game = Required(GameDetail)
-    country = Required(Country)
+    country = Required(str)
     price = Optional(Decimal)
     currency = Optional(str)
     PrimaryKey(game, country)
