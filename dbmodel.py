@@ -9,6 +9,7 @@ dblite = Database()
 
 class GameList(dblite.Entity):
     id = PrimaryKey(int)
+    hasWriteInDB = Required(bool, default=False)
 
 
 class CountryTable(dblite.Entity):
@@ -51,6 +52,8 @@ class GameDetail(db.Entity):
     editions = Set('GameDetail', reverse='editions')
     changeRecord = Set('ChangeRecord')
     lastUpdate = Required(datetime)
+    lastPriceUpdate = Optional(datetime)
+    lastDiscountUpdate = Optional(datetime)
 
 
 class GameLink(db.Entity):

@@ -246,11 +246,16 @@ def discount_parse(discount_data):
         if game.discount:
             dis_lst = select(dis for dis in Discount if dis.game == game).order_by(desc(Discount.dateTime))[:][0]
             if dis_lst.discount != discount:
-                return Discount(game=game, dateTime=datetime.utcnow(), discount=discount)
+                dis = Discount(game=game, dateTime=datetime.utcnow(), discount=discount)
+                GameDetail[int(gameid)].lastDiscountUpdate = datetime.utcnow()
+                return dis
             else:
+                GameDetail[int(gameid)].lastDiscountUpdate = datetime.utcnow()
                 return dis_lst
         else:
-            return Discount(game=game, dateTime=datetime.utcnow(), discount=discount)
+            dis = Discount(game=game, dateTime=datetime.utcnow(), discount=discount)
+            GameDetail[int(gameid)].lastDiscountUpdate = datetime.utcnow()
+            return dis
 
 
 @db_session
@@ -274,6 +279,8 @@ def baseprice_parse(price_data):
                         country = price_data['country'],
                         price = price_data['basePrice'],
                         currency = price_data['currency'])
+
+            GameDetail[int(price_data['gameId'])].lastPriceUpdate = datetime.utcnow()
 
 
 @db_session
@@ -364,6 +371,8 @@ def gamedetail_parse(json_data, lite_mode = False):
         game.image = image_parse(game, product_data['_links']['image'])
     game.screenshots = screenshot_parse(game, embedded_data['screenshots'])
     game.videos = video_parse(game, embedded_data['videos'])
+
+    GameList[product_data['id']].hasWriteInDB = True
 
     if not lite_mode:
 
