@@ -1,13 +1,15 @@
-### GOGDB
+### GOGDB Core
 
-This project consists of two parts: `GOGDB website` and `GOG Spider`, and now only part of the gog spider is implemented
+GOG DataBase core library, content GOG API, DataBase Design and Data Parse Method
+
+#### DataBase Design
+
+Use [PonyOrm Editor](https://editor.ponyorm.com) to design database.
+
+You can see the database model here: [Database Model](https://editor.ponyorm.com/user/tiehichi/gogdb/designer)
 
 #### TODO
 
-- Get the game price and save it to the database
-- Handle game discount information and record it
-- Handle changes in product information and record it
-- Implement a beautiful web page
-
+- auto record database change, and save record into `ChangeRecord` table
 
 Thanks to [Yepoleb](https://github.com/Yepoleb) for his help
