@@ -21,7 +21,7 @@ class utility():
                     'currency':'',
                     'basePrice':None,
                     'finalPrice':None,
-                    'country':country}
+                    'country':country.upper()}
         else:
             if '_embedded' in price_data:
                 price_data = price_data['_embedded']['prices'][0]
@@ -30,14 +30,14 @@ class utility():
                 price['currency'] = price_data['currency']['code']
                 price['basePrice'] = round(int(price_data['basePrice'].split(' ')[0]) * 0.01, 2)
                 price['finalPrice'] = round(int(price_data['finalPrice'].split(' ')[0]) * 0.01, 2)
-                price['country'] = country
+                price['country'] = country.upper()
                 return price
             else:
                 return {'gameId':gameid,
                         'currency':'',
                         'basePrice':None,
                         'finalPrice':None,
-                        'country':country}
+                        'country':country.upper()}
 
 
 class API(object):
