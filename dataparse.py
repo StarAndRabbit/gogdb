@@ -1,5 +1,5 @@
-from gogapi import utility
-from dbmodel import *
+from .gogapi import utility
+from .dbmodel import *
 import dateutil.parser, re
 from datetime import datetime
 
@@ -269,10 +269,20 @@ def baseprice_parse(price_data):
                 game_price = get(bprice for bprice in BasePrice
                         if bprice.game == GameDetail[int(price_data['gameId'])]
                         and bprice.country == price_data['country'])
+
                 if game_price.currency != price_data['currency']:
-                    game_price.currency = price_data['currency']
+                    oldvalue = game_price.currency
+                    newvalue = price_data['currency']
+                    changerecord_parse(GameDetail[int(price_data['gameId'])],
+                            format('currency in %s' % price_data['country']), oldvalue, newvalue)
+                    game_price.currency = newvalue
+
                 if game_price.price != price_data['basePrice']:
-                    game_price.price = price_data['basePrice']
+                    oldvalue = game_price.price
+                    newvalue = price_data['basePrice']
+                    changerecord_parse(GameDetail[int(price_data['gameId'])],
+                        format('baseprice in %s' % price_data['country']), oldvalue, newvalue)
+                    game_price.price = newvalue
             else:
                 BasePrice(
                         game = GameDetail[int(price_data['gameId'])],
@@ -281,6 +291,12 @@ def baseprice_parse(price_data):
                         currency = price_data['currency'])
 
             GameDetail[int(price_data['gameId'])].lastPriceUpdate = datetime.utcnow()
+
+
+@db_session
+def changerecord_parse(game, column, oldvalue, newvalue):
+    return ChangeRecord(game=game, dateTime=datetime.utcnow(),
+            change=format('Change %s [ %s -> %s ]' % (column, str(oldvalue), str(newvalue))))
 
 
 @db_session
@@ -296,44 +312,83 @@ def gamedetail_parse(json_data, lite_mode = False):
         game.lastUpdate = datetime.utcnow()
 
         if game.inDevelopment != json_data['inDevelopment']['active']:
-            game.inDevelopment = json_data['inDevelopment']['active']
+            oldvalue = game.inDevelopment
+            newvalue = json_data['inDevelopment']['active']
+            changerecord_parse(game, 'inDevelopment', oldvalue, newvalue)
+            game.inDevelopment = newvalue
 
         if game.isUsingDosBox != json_data['isUsingDosBox']:
-            game.isUsingDosBox = json_data['isUsingDosBox']
+            oldvalue = game.isUsingDosBox
+            newvalue = json_data['isUsingDosBox']
+            changerecord_parse(game, 'isUsingDosBox', oldvalue, newvalue)
+            game.isUsingDosBox = newvalue
 
         if game.isAvailableForSale != product_data['isAvailableForSale']:
-            game.isAvailableForSale = product_data['isAvailableForSale']
+            oldvalue = game.isAvailableForSale
+            newvalue = product_data['isAvailableForSale']
+            changerecord_parse(game, 'isAvailableForSale', oldvalue, newvalue)
+            game.isAvailableForSale = newvalue
 
         if game.isVisibleInCatalog != product_data['isVisibleInCatalog']:
-            game.isVisibleInCatalog = product_data['isVisibleInCatalog']
+            oldvalue = game.isVisibleInCatalog
+            newvalue = product_data['isVisibleInCatalog']
+            changerecord_parse(game, 'isVisibleInCatalog', oldvalue, newvalue)
+            game.isVisibleInCatalog = newvalue
 
         if game.isPreorder != product_data['isPreorder']:
-            game.isPreorder = product_data['isPreorder']
+            oldvalue = game.isPreorder
+            newvalue = product_data['isPreorder']
+            changerecord_parse(game, 'isPreorder', oldvalue, newvalue)
+            game.isPreorder = newvalue
 
         if game.isVisibleInAccount != product_data['isVisibleInAccount']:
-            game.isVisibleInAccount = product_data['isVisibleInAccount']
+            oldvalue = game.isVisibleInAccount
+            newvalue = product_data['isVisibleInAccount']
+            changerecord_parse(game, 'isVisibleInAccount', oldvalue, newvalue)
+            game.isVisibleInAccount = newvalue
 
         if game.isInstallable != product_data['isInstallable']:
-            game.isInstallable = product_data['isInstallable']
+            oldvalue = game.isInsallable
+            newvalue = product_data['isInstallable']
+            changerecord_parse(game, 'isInstallable', oldvalue, newvalue)
+            game.isInstallable = newvalue
 
         if game.hasProductCard != product_data['hasProductCard']:
-            game.hasProductCard = product_data['hasProductCard']
+            oldvalue = game.hasProductCard
+            newvalue = product_data['hasProductCard']
+            changerecord_parse(game, 'hasProductCard', oldvalue, newvalue)
+            game.hasProductCard = newvalue
 
         if game.isSecret != product_data['isSecret']:
-            game.isSecret = product_data['isSecret']
+            oldvalue = game.isSecret
+            newvalue = product_data['isSecret']
+            changerecord_parse(game, 'isSecret', oldvalue, newvalue)
+            game.isSecret = newvalue
 
         if 'globalReleaseDate' in product_data:
             if game.globalReleaseDate != dateutil.parser.parse(product_data['globalReleaseDate']).replace(tzinfo=None):
-                game.globalReleaseDate = dateutil.parser.parse(product_data['globalReleaseDate']).replace(tzinfo=None)
+                oldvalue = game.globalReleaseDate
+                newvalue = dateutil.parser.parse(product_data['globalReleaseDate']).replace(tzinfo=None)
+                changerecord_parse(game, 'globalReleaseDate', oldvalue, newvalue)
+                game.globalReleaseDate = newvalue
 
         if game.title != product_data['title']:
-            game.title = product_data['title']
+            oldvalue = game.title
+            newvalue = product_data['title']
+            changerecord_parse(game, 'title', oldvalue, newvalue)
+            game.title = newvalue
 
         if game.productType != embedded_data['productType']:
-            game.productType = embedded_data['productType']
+            oldvalue = game.productType
+            newvalue = embedded_data['productType']
+            changerecord_parse(game, 'productType', oldvalue, newvalue)
+            game.productType = newvalue
 
         if game.averageRating != json_data['averageRating']:
-            game.averageRating = json_data['averageRating']
+            oldvalue = game.averageRating
+            newvalue = json_data['averageRating']
+            changerecord_parse(game, 'averageRating', oldvalue, newvalue)
+            game.averageRating = newvalue
 
         if 'additionalRequirements' in json_data:
             if game.additionalRequirements != json_data['additionalRequirements'].strip():
@@ -360,6 +415,9 @@ def gamedetail_parse(json_data, lite_mode = False):
         if 'additionalRequirements' in json_data:
             game.additionalRequirements = json_data['additionalRequirements'].strip()
 
+        GameList[product_data['id']].hasWriteInDB = True
+        ChangeRecord(game=game, dateTime=datetime.utcnow(), change=format('Added Product - %s' % game.title))
+
     game.links = link_parse(game, json_data['_links'])
     game.publishers = publisher_parse(embedded_data['publisher'])
     game.developers = developer_parse(embedded_data['developers'])
@@ -371,8 +429,6 @@ def gamedetail_parse(json_data, lite_mode = False):
         game.image = image_parse(game, product_data['_links']['image'])
     game.screenshots = screenshot_parse(game, embedded_data['screenshots'])
     game.videos = video_parse(game, embedded_data['videos'])
-
-    GameList[product_data['id']].hasWriteInDB = True
 
     if not lite_mode:
 
