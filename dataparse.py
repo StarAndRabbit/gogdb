@@ -34,7 +34,7 @@ def link_parse(game_detail, link_data):
             link.support = link_data['support']['href']
 
         if link.forum != link_data['forum']['href']:
-            link.support = link_data['forum']['href']
+            link.forum = link_data['forum']['href']
 
         if link.iconSquare != link_data['iconSquare']['href']:
             link.iconSquare = link_data['iconSquare']['href']
@@ -438,7 +438,6 @@ def gamedetail_parse(json_data, lite_mode = False):
                 gid = utility.get_game_id_from_url(gid['href'])
                 if gid:
                     if not select(game for game in GameDetail if game.id == gid).exists():
-                        #req_games.append(gamedetail_parse(gid, API.get_game_data(gid)))
                         continue
                     else:
                         req_games.append(GameDetail[gid])
@@ -450,7 +449,6 @@ def gamedetail_parse(json_data, lite_mode = False):
                 gid = utility.get_game_id_from_url(gid['href'])
                 if gid:
                     if not select(game for game in GameDetail if game.id == gid).exists():
-                        #inc_games.append(gamedetail_parse(gid, API.get_game_data(gid)))
                         continue
                     else:
                         inc_games.append(GameDetail[gid])
@@ -462,14 +460,8 @@ def gamedetail_parse(json_data, lite_mode = False):
                 if select(game for game in GameDetail if game.id == edition['id']).exists():
                     editions.append(GameDetail[edition['id']])
                 else:
-                    '''
-                    json_data = API.get_game_data(edition['id'])
-                    if '_embedded' in json_data:
-                        editions.append(gamedetail_parse(edition['id'], json_data))
-                    '''
                     continue
             game.editions = editions
 
-        #discount_parse(game)
     return game
 
