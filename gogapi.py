@@ -170,6 +170,8 @@ class API(object):
             else:
                 gid_point = 0
                 for gid in game_id:
+                    if len(price_data) <= gid_point:
+                        break
                     pdata_now = price_data[gid_point]
                     if str(gid) == utility.get_game_id_from_url(pdata_now['_links']['self']['href']):
                         price = utility.price_data_parse(gid, pdata_now, country_code)
@@ -262,6 +264,8 @@ class API(object):
                     yield utility.price_data_parse(gid, None, countries[country_point])
             else:
                 for gid in game_id:
+                    if len(price_data) <= gid_point:
+                        break
                     pdata_now = price_data[gid_point]
                     if str(gid) == utility.get_game_id_from_url(pdata_now['_links']['self']['href']):
                         price = utility.price_data_parse(gid, pdata_now, countries[country_point])
