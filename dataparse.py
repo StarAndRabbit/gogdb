@@ -387,7 +387,7 @@ def gamedetail_parse(json_data, lite_mode = False):
         if game.averageRating != json_data['averageRating']:
             oldvalue = game.averageRating
             newvalue = json_data['averageRating']
-            changerecord_parse(game, 'averageRating', oldvalue, newvalue)
+            #changerecord_parse(game, 'averageRating', oldvalue, newvalue)
             game.averageRating = newvalue
 
         if 'additionalRequirements' in json_data:
