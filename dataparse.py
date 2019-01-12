@@ -372,9 +372,9 @@ def gamedetail_parse(json_data, lite_mode = False):
                 changerecord_parse(game, 'globalReleaseDate', oldvalue, newvalue)
                 game.globalReleaseDate = newvalue
 
-        if game.title != product_data['title']:
+        if game.title != product_data['title'].strip():
             oldvalue = game.title
-            newvalue = product_data['title']
+            newvalue = product_data['title'].strip()
             changerecord_parse(game, 'title', oldvalue, newvalue)
             game.title = newvalue
 
@@ -397,7 +397,7 @@ def gamedetail_parse(json_data, lite_mode = False):
     else:
         game = GameDetail(
                 id = product_data['id'],
-                title = product_data['title'],
+                title = product_data['title'].strip(),
                 inDevelopment = json_data['inDevelopment']['active'],
                 isUsingDosBox = json_data['isUsingDosBox'],
                 isAvailableForSale = product_data['isAvailableForSale'],
