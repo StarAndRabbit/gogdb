@@ -260,8 +260,8 @@ def discount_parse(discount_data):
 
 @db_session
 def baseprice_parse(price_data):
-    if price_data['basePrice'] != None:
-        if select(game for game in GameDetail if game.id == int(price_data['gameId'])).exists():
+    if select(game for game in GameDetail if game.id == int(price_data['gameId'])).exists():
+        if price_data['basePrice'] != None:
             if select(bprice for bprice in BasePrice
                     if bprice.game == GameDetail[int(price_data['gameId'])]
                     and bprice.country == price_data['country']).exists():
@@ -290,7 +290,7 @@ def baseprice_parse(price_data):
                         price = price_data['basePrice'],
                         currency = price_data['currency'])
 
-            GameDetail[int(price_data['gameId'])].lastPriceUpdate = datetime.utcnow()
+        GameDetail[int(price_data['gameId'])].lastPriceUpdate = datetime.utcnow()
 
 
 @db_session
