@@ -166,7 +166,7 @@ class API(object):
 
             if len(price_data) == 0:
                 for gid in game_id:
-                    yield utility.price_data_parse(None, country_code)
+                    yield utility.price_data_parse(gid, None, country_code)
             else:
                 gid_point = 0
                 for gid in game_id:
