@@ -2,6 +2,7 @@ from .gogapi import utility
 from .dbmodel import *
 import dateutil.parser, re
 from datetime import datetime
+from decimal import *
 
 
 @db_session
@@ -262,6 +263,7 @@ def discount_parse(discount_data):
 def baseprice_parse(price_data):
     if select(game for game in GameDetail if game.id == int(price_data['gameId'])).exists():
         if price_data['basePrice'] != None:
+            price_data['basePrice'] = Decimal(price_data['basePrice']).quantize(Decimal('.00'))
             if select(bprice for bprice in BasePrice
                     if bprice.game == GameDetail[int(price_data['gameId'])]
                     and bprice.country == price_data['country']).exists():
