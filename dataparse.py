@@ -295,8 +295,14 @@ def baseprice_parse(price_data):
 
 @db_session
 def changerecord_parse(game, column, oldvalue, newvalue):
+    ov = oldvalue
+    nv = newvalue
+    if not isinstance(oldvalue, str) and not isinstance(oldvalue, unicode):
+        ov = str(oldvalue)
+    if not isinstance(newvalue, str) and not isinstance(newvalue, unicode):
+        nv = str(newvalue)
     return ChangeRecord(game=game, dateTime=datetime.utcnow(),
-            change=format('Change %s [ %s -> %s ]' % (column, oldvalue.encode('utf-8'), newvalue.encode('utf-8'))))
+            change=format('Change %s [ %s -> %s ]' % (column, ov, nv)))
 
 
 @db_session
