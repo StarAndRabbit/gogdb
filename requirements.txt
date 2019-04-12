@@ -4,3 +4,7 @@ pony
 python-dateutil
 psycopg2-binary
 fake-useragent
+
+aiphttp
+cchardet
+aiodns
