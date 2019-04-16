@@ -3,7 +3,7 @@
 
 import aiohttp, asyncio
 from fake_useragent import UserAgent
-import re, logging
+import logging
 
 
 class APIRequester:
@@ -41,14 +41,18 @@ class APIRequester:
             async with self.__session.get(url, params=params) as resp:
                 try:
                     resp.raise_for_status()
-                    return await resp.json()
                 except Exception as e:
                     retries += 1
                     if retries <= self.__retries:
-                        pass
+                        continue
                     else:
-                        self.__logger.error('Fatal error occur when %s: %s' % (logstr, e))
-                        return {'error':True, 'errorType':type(e).__name__, 'errorMessage':str(e)}
+                        self.__logger.error('Fatal error occured when %s: %s' % (logstr, e))
+                        return {'error':True, 'errorType':type(e).__name__, 'errorMessage':resp.reason, 'responseStatus':resp.status}
+                try:
+                    return await resp.json()
+                except Exception as e:
+                    self.__logger.error('Fatal error occured when %s: %s' % (logstr, e))
+                    return {'error':True, 'errorType':type(e).__name__, 'errorMessage':str(e), 'responseStatus':resp.status}
 
 
     async def __getjson_multi_urls(self, urls, params):
@@ -91,21 +95,36 @@ class APIUtility():
     def errorchk(self, jsondata):
         error = jsondata.get('error', False)
         if error:
-            self.__logger.warning('Error occur on request, may lost data')
+            self.__logger.warning('Error occured on request, may lost data')
         return error
 
-    def product_notfoundchk(self, productdata):
+    def product_notfoundchk(self, productid, productdata):
         if "message" in productdata:
             msg = productdata['message']
-            t = re.findall('\d+', msg)
             if t:
-                self.__logger.error('Product %s not found' % max(t, key=len))
+                self.__logger.error('Product %s not found' % productid)
                 return True
             else:
                 self.__logger.error('Product id may error, product data here %s' % productdata)
                 return False
         else:
             return False
+
+    def product_errorchk(self, productid, productdata):
+        if self.errorchk(productdata):
+            productdata['id'] = productid
+            return productdata
+
+        if self.product_notfoundchk(productid, productdata):
+            err_msg = {
+                    'id':productid,
+                    'error':True,
+                    'responseStatus':404,
+                    'errorMessage':'Not Found',
+                    'errorType':'ClientResponseError'}
+            return err_msg
+
+        return productdata
 
 
 class API():
@@ -201,7 +220,7 @@ class API():
             except Exception as e:
                 self.__logger.error("[%s] %s %s" % (self.get_all_product_id.__name__, type(e).__name__, e))
                 return [-1]
-            params = [{'page':page} for page in range(1, pages+1)]
+            params = [{'page':page, 'locale':'en-US'} for page in range(1, pages+1)]
             results = await request.getjson(self.__hosts['detail'], params)
 
             sum_ids = list()
@@ -225,6 +244,32 @@ class API():
 
             return sum_ids
 
+    async def get_product_data(self, product_id):
+        params = {'locale':'en-US'}
+
+        if type(product_id) == type(int()) or type(product_id) == type(str()):
+            self.__logger.info('Call %s, ids=[%s]' % (self.get_product_data.__name__, str(product_id)))
+            async with APIRequester(self.__retries) as request:
+                return self.__utl.product_errorchk(product_id,
+                        await request.getjson(f"{self.__hosts['detail']}/{product_id}", params))
+
+        elif type(product_id) == type(list()) or type(product_id) == type(tuple()):
+            self.__logger.info('Call %s, ids=[%s]' % (self.get_product_data.__name__, ', '.join(str(proid) for proid in product_id)))
+            urls = [f"{self.__hosts['detail']}/{proid}" for proid in product_id]
+
+            async with APIRequester(self.__retries) as request:
+                product_datas = await request.getjson(urls, params)
+                for i in range(0, len(product_id)):
+                    product_datas[i] = self.__utl.product_errorchk(product_id[i], product_datas[i])
+
+                return product_datas
+
+        else:
+            return {'error':True,
+                    'errorType':'TypeError',
+                    'errorMessage':'product_id just support int, string, list or tuple',
+                    'id':product_id}
+
 
 if __name__ == "__main__":
     import time
@@ -238,5 +283,17 @@ if __name__ == "__main__":
     api = API()
     logger.info('Total Products: %s' % asyncio.run(api.get_total_num()))
     start = time.time()
-    logger.info('Total Products: %s' % len(asyncio.run(api.get_all_product_id())))
+    ids = asyncio.run(api.get_all_product_id())
+    logger.info('Total Products: %s' % len(ids))
     logger.info('Get All Product ID time usage: %s' % (time.time() - start))
+    if -1 in ids:
+        logger.error('Error occured when get all product id')
+
+    proid = 1943729714
+    product_data = asyncio.run(api.get_product_data(proid))
+    if product_data.get('error', False):
+        logger.error(f'Error occured when get product {proid}')
+    else:
+        logger.info(f'Get product {proid} success')
+
+    asyncio.run(api.get_product_data([1,2,3,4,5,6,7,8,9,0]))
