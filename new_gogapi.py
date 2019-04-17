@@ -25,11 +25,11 @@ class APIRequester:
         self.__session = None
 
     async def getjson(self, url, params=None):
-        if type(url) == type(str()) and (type(params) == type(dict()) or params == None):
+        if isinstance(url, str) and (isinstance(params, dict) or params == None):
             return await self.__getjson(url, params)
-        if type(url) == type(list()) and (type(params) == type(dict()) or params == None):
+        elif isinstance(url, list) and (isinstance(params, dict) or params == None):
             return await self.__getjson_multi_urls(url, params)
-        if type(url) == type(str()) and type(params) == type(list()):
+        elif isinstance(url, str) and isinstance(params, list):
             return await self.__getjson_multi_params(url, params)
 
 
@@ -247,13 +247,13 @@ class API():
     async def get_product_data(self, product_id):
         params = {'locale':'en-US'}
 
-        if type(product_id) == type(int()) or type(product_id) == type(str()):
+        if isinstance(product_id, int) or isinstance(product_id, str):
             self.__logger.info('Call %s, ids=[%s]' % (self.get_product_data.__name__, str(product_id)))
             async with APIRequester(self.__retries) as request:
                 return self.__utl.product_errorchk(product_id,
                         await request.getjson(f"{self.__hosts['detail']}/{product_id}", params))
 
-        elif type(product_id) == type(list()) or type(product_id) == type(tuple()):
+        elif isinstance(product_id, list) or isinstance(product_id, tuple):
             self.__logger.info('Call %s, ids=[%s]' % (self.get_product_data.__name__, ', '.join(str(proid) for proid in product_id)))
             urls = [f"{self.__hosts['detail']}/{proid}" for proid in product_id]
 
