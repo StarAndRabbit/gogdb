@@ -5,6 +5,6 @@ python-dateutil
 psycopg2-binary
 fake-useragent
 
-aiphttp
+aiohttp
 cchardet
 aiodns
