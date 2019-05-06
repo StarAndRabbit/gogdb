@@ -35,24 +35,36 @@ class APIRequester:
 
     async def __getjson(self, url, params):
         retries = 0
-        logstr = 'request %s with params %s' % (url, params)
+        logstr = f'request {url} with params {params}'
         self.__logger.debug('Now %s' % logstr)
         while True:
-            async with self.__session.get(url, params=params) as resp:
-                try:
-                    resp.raise_for_status()
-                except Exception as e:
-                    retries += 1
-                    if retries <= self.__retries:
-                        continue
-                    else:
+            if retries != 0:
+                self.__logger.debug(f'Retry Times {retries}')
+            try:
+                async with self.__session.get(url, params=params) as resp:
+                    try:
+                        resp.raise_for_status()
+                    except Exception as e:
+                        retries += 1
+                        if retries <= self.__retries:
+                            continue
+                        else:
+                            self.__logger.error('Fatal error occured when %s: %s' % (logstr, e))
+                            return {'error':True, 'errorType':type(e).__name__, 'errorMessage':resp.reason, 'responseStatus':resp.status}
+                    try:
+                        return await resp.json()
+                    except Exception as e:
                         self.__logger.error('Fatal error occured when %s: %s' % (logstr, e))
-                        return {'error':True, 'errorType':type(e).__name__, 'errorMessage':resp.reason, 'responseStatus':resp.status}
-                try:
-                    return await resp.json()
-                except Exception as e:
-                    self.__logger.error('Fatal error occured when %s: %s' % (logstr, e))
-                    return {'error':True, 'errorType':type(e).__name__, 'errorMessage':str(e), 'responseStatus':resp.status}
+                        return {'error':True, 'errorType':type(e).__name__, 'errorMessage':str(e), 'responseStatus':resp.status}
+            except aiohttp.ClientConnectorError as e:
+                retries += 1
+                if retries <= self.__retries:
+                    self.__logger.debug('Network error, retry...')
+                    continue
+                else:
+                    self.__logger.error(f'Network error occured when {logstr}: {e}')
+                    print({'error':True, 'errorType':type(e).__name__, 'errorMessage':resp.reason, 'responseStatus':resp.status})
+                    return {'error':True, 'errorType':type(e).__name__, 'errorMessage':resp.reason, 'responseStatus':resp.status}
 
 
     async def __getjson_multi_urls(self, urls, params):
@@ -129,7 +141,7 @@ class APIUtility():
 
 class API():
 
-    def __init__(self, retries=5):
+    def __init__(self, retries=5, concurrency=10):
         self.__hosts = dict()
         self.__hosts['detail'] = 'https://api.gog.com/v2/games'
         self.__hosts['price'] = 'https://api.gog.com/products/{productid}/prices'
@@ -138,6 +150,7 @@ class API():
         self.__hosts['rating'] = 'https://reviews.gog.com/v1/products/{productid}/averageRating?reviewer=verified_owner'
 
         self.__retries = retries
+        self.__concurrency = concurrency
         self.__logger = logging.getLogger('GOGDB.GOGAPI')
 
         self.__utl = APIUtility()
@@ -151,6 +164,14 @@ class API():
         self.__retries = value
 
     @property
+    def concurrency(self):
+        return self.__concurrency
+
+    @concurrency.setter
+    def concurrency(self, value):
+        self.__concurrency = value
+
+    @property
     def logger(self):
         return self.__logger
 
@@ -161,7 +182,7 @@ class API():
 
     async def get_total_num(self):
         self.__logger.debug("Call %s" % self.get_total_num.__name__)
-        async with APIRequester(self.__retries) as request:
+        async with APIRequester(self.__retries, self.__concurrency) as request:
             fst_page = await request.getjson(self.__hosts['detail'])
 
             if self.__utl.errorchk(fst_page):
@@ -189,7 +210,7 @@ class API():
     async def get_product_id_in_page(self, page, limit=50):
         self.__logger.info("Call %s" % self.get_product_id_in_page.__name__)
         params = {'page':page, 'limit':limit, 'locale':'en-US'}
-        async with APIRequester(self.__retries) as request:
+        async with APIRequester(self.__retries, self.__concurrency) as request:
             page_data = await request.getjson(self.hosts['detail'], params=params)
             if self.__utl.errorchk(page_data):
                 return [-1]
@@ -211,7 +232,7 @@ class API():
 
     async def get_all_product_id(self):
         self.__logger.info("Call %s" % self.get_all_product_id.__name__)
-        async with APIRequester(self.__retries) as request:
+        async with APIRequester(self.__retries, self.__concurrency) as request:
             pages_data = await request.getjson(self.__hosts['detail'])
             if self.__utl.errorchk(pages_data):
                 return [-1]
@@ -244,12 +265,13 @@ class API():
 
             return sum_ids
 
+
     async def get_product_data(self, product_id):
         params = {'locale':'en-US'}
 
         if isinstance(product_id, int) or isinstance(product_id, str):
             self.__logger.info('Call %s, ids=[%s]' % (self.get_product_data.__name__, str(product_id)))
-            async with APIRequester(self.__retries) as request:
+            async with APIRequester(self.__retries, self.__concurrency) as request:
                 return self.__utl.product_errorchk(product_id,
                         await request.getjson(f"{self.__hosts['detail']}/{product_id}", params))
 
@@ -257,7 +279,7 @@ class API():
             self.__logger.info('Call %s, ids=[%s]' % (self.get_product_data.__name__, ', '.join(str(proid) for proid in product_id)))
             urls = [f"{self.__hosts['detail']}/{proid}" for proid in product_id]
 
-            async with APIRequester(self.__retries) as request:
+            async with APIRequester(self.__retries, self.__concurrency) as request:
                 product_datas = await request.getjson(urls, params)
                 for i in range(0, len(product_id)):
                     product_datas[i] = self.__utl.product_errorchk(product_id[i], product_datas[i])
@@ -271,6 +293,11 @@ class API():
                     'id':product_id}
 
 
+    async def get_countries(self):
+        async with APIRequester(self.__retries, self.__concurrency) as request:
+            return await request.getjson(self.__hosts['region'])
+
+
 if __name__ == "__main__":
     import time
 
@@ -281,6 +308,7 @@ if __name__ == "__main__":
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
     api = API()
+    '''
     logger.info('Total Products: %s' % asyncio.run(api.get_total_num()))
     start = time.time()
     ids = asyncio.run(api.get_all_product_id())
@@ -295,5 +323,6 @@ if __name__ == "__main__":
         logger.error(f'Error occured when get product {proid}')
     else:
         logger.info(f'Get product {proid} success')
-
+    '''
     asyncio.run(api.get_product_data([1,2,3,4,5,6,7,8,9,0]))
+    asyncio.run(api.get_countries())
