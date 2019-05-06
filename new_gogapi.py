@@ -49,12 +49,12 @@ class APIRequester:
                         if retries <= self.__retries:
                             continue
                         else:
-                            self.__logger.error('Fatal error occured when %s: %s' % (logstr, e))
+                            self.__logger.error(f'Fatal error occured when {logstr}: {e}')
                             return {'error':True, 'errorType':type(e).__name__, 'errorMessage':resp.reason, 'responseStatus':resp.status}
                     try:
                         return await resp.json()
                     except Exception as e:
-                        self.__logger.error('Fatal error occured when %s: %s' % (logstr, e))
+                        self.__logger.error(f'Fatal error occured when {logstr}: {e}')
                         return {'error':True, 'errorType':type(e).__name__, 'errorMessage':str(e), 'responseStatus':resp.status}
             except aiohttp.ClientConnectorError as e:
                 retries += 1
@@ -114,10 +114,10 @@ class APIUtility():
         if "message" in productdata:
             msg = productdata['message']
             if t:
-                self.__logger.error('Product %s not found' % productid)
+                self.__logger.error(f'Product {productid} not found')
                 return True
             else:
-                self.__logger.error('Product id may error, product data here %s' % productdata)
+                self.__logger.error(f'Product id may error, product data here {productdata}')
                 return False
         else:
             return False
@@ -181,7 +181,7 @@ class API():
 
 
     async def get_total_num(self):
-        self.__logger.debug("Call %s" % self.get_total_num.__name__)
+        self.__logger.debug(f"Call {self.get_total_num.__name__}")
         async with APIRequester(self.__retries, self.__concurrency) as request:
             fst_page = await request.getjson(self.__hosts['detail'])
 
@@ -192,7 +192,7 @@ class API():
                 pages = fst_page['pages']
                 lst_page_url = fst_page['_links']['last']['href']
             except Exception as e:
-                self.__logger.error("[%s] %s %s" % (self.get_total_num.__name__, type(e).__name__, e))
+                self.__logger.error(f"{self.get_total_num.__name__} {type(e).__name__} {e}")
                 return -1
 
             lst_page = await request.getjson(lst_page_url)
@@ -307,8 +307,7 @@ if __name__ == "__main__":
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
-    api = API()
-    '''
+    api = API(concurrency=16)
     logger.info('Total Products: %s' % asyncio.run(api.get_total_num()))
     start = time.time()
     ids = asyncio.run(api.get_all_product_id())
@@ -323,6 +322,5 @@ if __name__ == "__main__":
         logger.error(f'Error occured when get product {proid}')
     else:
         logger.info(f'Get product {proid} success')
-    '''
     asyncio.run(api.get_product_data([1,2,3,4,5,6,7,8,9,0]))
     asyncio.run(api.get_countries())
