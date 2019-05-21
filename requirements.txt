@@ -6,3 +6,5 @@ fake-useragent
 aiohttp
 cchardet
 aiodns
+lxml
+html5lib
