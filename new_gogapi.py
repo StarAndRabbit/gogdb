@@ -271,10 +271,14 @@ class API():
         self.__hosts['login'] = 'https://login.gog.com/login_check'
         self.__hosts['token'] = 'https://auth.gog.com/token'
 
+        self.__client_id = '46899977096215655'
+        self.__client_secret = '9d85c43b1482497dbbce61f6e4aa173a433796eeae2ca8c5f6129f2dc4de46d9'
+        self.__redirect_uri = 'https://embed.gog.com/on_login_success?origin=client'
+
         self.__auth = dict()
         self.__auth['auth'] = {
-            'client_id': '46899977096215655',
-            'redirect_uri': 'https://embed.gog.com/on_login_success?origin=client',
+            'client_id': self.__client_id,
+            'redirect_uri': self.__redirect_uri,
             'response_type': 'code',
             'layout': 'default'
         }
@@ -285,11 +289,17 @@ class API():
             'login[_token]': ''
         }
         self.__auth['token'] = {
-            'client_id': '46899977096215655',
-            'client_secret': '9d85c43b1482497dbbce61f6e4aa173a433796eeae2ca8c5f6129f2dc4de46d9',
+            'client_id': self.__client_id,
+            'client_secret': self.__client_secret,
             'grant_type': 'authorization_code',
             'code': '',
-            'redirect_uri': 'https://embed.gog.com/on_login_success?origin=client'
+            'redirect_uri': self.__redirect_uri
+        }
+        self.__auth['refresh'] = {
+            'client_id': self.__client_id,
+            'client_secret': self.__client_secret,
+            'grant_type': 'refresh_token',
+            'refresh_token': ''
         }
 
         self.__token = dict()
@@ -477,7 +487,7 @@ class API():
                 self.__auth['token']['code'] = loginrep['url'].query['code']
 
             # get access token
-            tokenrep = await request.post(self.__hosts['token'], self.__auth['token'], loginrep['cookies'])
+            tokenrep = await request.get(self.__hosts['token'], self.__auth['token'], loginrep['cookies'])
             if self.__utl.errorchk(tokenrep):
                 self.__logger.error(f'login error')
                 tokenrep['login_success'] = False
@@ -485,6 +495,17 @@ class API():
             else:
                 self.__token = dict(self.__token, **json.loads(tokenrep['text']))
                 self.__token['login_success'] = True
+                return self.__token
+
+    async def refresh_token(self):
+        self.__auth['refresh']['refresh_token'] = self.__token['refresh_token']
+        async with APIRequester(self.__retries, self.__concurrency) as request:
+            tokenrep = await request.getjson(self.__hosts['token'], self.__auth['refresh'])
+            if self.__utl.errorchk(tokenrep):
+                self.logger.error(f'refresh token error')
+                return tokenrep
+            else:
+                self.__token = dict(self.__token, **tokenrep)
                 return self.__token
 
 
