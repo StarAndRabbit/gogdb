@@ -8,3 +8,4 @@ cchardet
 aiodns
 lxml
 html5lib
+simplejson

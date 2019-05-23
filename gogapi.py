@@ -1,293 +1,515 @@
-import requests, json
-from requests.adapters import HTTPAdapter
-from multiprocessing.dummy import Pool as ThreadPool
-import grequests, re, logging
+#!/usr/bin/env python
+# encoding: utf-8
+
+import aiohttp, asyncio
 from fake_useragent import UserAgent
+import logging
+import html5lib
+import json
+from datetime import datetime
 
 
-class utility():
-    @staticmethod
-    def get_game_id_from_url(url):
-        t = re.findall('\d+', url)
-        if t:
-            return max(t, key=len)
+class APIRequester:
+
+    def __init__(self, retries=5, concurrency=10):
+        self.__retries = retries
+        self.__concurrency = concurrency
+        self.__logger = logging.getLogger('GOGDB.REQUESTER')
+
+    async def __aenter__(self):
+        self.__ua = UserAgent().random
+        self.__session = aiohttp.ClientSession(headers={'User-Agent':self.__ua})
+        return self
+
+    async def __aexit__(self, *err):
+        await self.__session.close()
+        self.__session = None
+
+    async def post(self, url, params=None, cookies=None):
+        retries = 0
+        logstr = f'request {url} with params {params}'
+        self.__logger.debug(f'Now {logstr}')
+        while True:
+            if retries != 0:
+                self.__logger.debug(f'Retry Times {retries}')
+            try:
+                async with self.__session.post(url, data=params, cookies=cookies) as resp:
+                    try:
+                        resp.raise_for_status()
+                    except Exception as e:
+                        retries += 1
+                        if retries <= self.__retries:
+                            continue
+                        else:
+                            self.__logger.error(f'Fatal error occurred when {logstr}: {e}')
+                            return {
+                                'error': True,
+                                'errorType': type(e).__name__,
+                                'errorMessage': resp.reason,
+                                'responseStatus': resp.status
+                            }
+                    try:
+                        return {
+                            'headers': resp.headers,
+                            'cookies': resp.cookies,
+                            'text': await resp.text(),
+                            'history': resp.history,
+                            'url': resp.url
+                        }
+                    except Exception as e:
+                        self.__logger.error(f'Fatal error occurred when {logstr}: {e}')
+                        return {
+                            'error': True,
+                            'errorType': type(e).__name__,
+                            'errorMessage': str(e),
+                            'responseStatus': resp.status
+                        }
+            except aiohttp.ClientConnectorError as e:
+                retries += 1
+                if retries <= self.__retries:
+                    self.__logger.debug('Network error, retry...')
+                    continue
+                else:
+                    self.__logger.error(f'Network error occurred when {logstr}: {e}')
+                    return {
+                        'error': True,
+                        'errorType': type(e).__name__,
+                        'errorMessage': str(e)
+                    }
+
+    async def get(self, url, params=None, cookies=None):
+        retries = 0
+        logstr = f'request {url} with params {params}'
+        self.__logger.debug(f'Now {logstr}')
+        while True:
+            if retries != 0:
+                self.__logger.debug(f'Retry Times {retries}')
+            try:
+                async with self.__session.get(url, params=params, cookies=cookies) as resp:
+                    try:
+                        resp.raise_for_status()
+                    except Exception as e:
+                        retries += 1
+                        if retries <= self.__retries:
+                            continue
+                        else:
+                            self.__logger.error(f'Fatal error occurred when {logstr}: {e}')
+                            return {
+                                'error': True,
+                                'errorType': type(e).__name__,
+                                'errorMessage': resp.reason,
+                                'responseStatus': resp.status
+                            }
+                    try:
+                        return {
+                            'headers': resp.headers,
+                            'cookies': resp.cookies,
+                            'text': await resp.text(),
+                            'history': resp.history,
+                            'url': resp.url
+                        }
+                    except Exception as e:
+                        self.__logger.error(f'Fatal error occurred when {logstr}: {e}')
+                        return {
+                            'error': True,
+                            'errorType': type(e).__name__,
+                            'errorMessage': str(e),
+                            'responseStatus': resp.status
+                        }
+            except aiohttp.ClientConnectorError as e:
+                retries += 1
+                if retries <= self.__retries:
+                    self.__logger.debug('Network error, retry...')
+                    continue
+                else:
+                    self.__logger.error(f'Network error occurred when {logstr}: {e}')
+                    return {
+                        'error': True,
+                        'errorType': type(e).__name__,
+                        'errorMessage': str(e)
+                    }
+
+    async def getjson(self, url, params=None):
+        if isinstance(url, str) and (isinstance(params, dict) or params == None):
+            return await self.__getjson(url, params)
+        elif isinstance(url, list) and (isinstance(params, dict) or params == None):
+            return await self.__getjson_multi_urls(url, params)
+        elif isinstance(url, str) and isinstance(params, list):
+            return await self.__getjson_multi_params(url, params)
+
+    async def __getjson(self, url, params):
+        retries = 0
+        logstr = f'request {url} with params {params}'
+        self.__logger.debug(f'Now {logstr}')
+        while True:
+            if retries != 0:
+                self.__logger.debug(f'Retry Times {retries}')
+            try:
+                async with self.__session.get(url, params=params) as resp:
+                    try:
+                        resp.raise_for_status()
+                    except Exception as e:
+                        retries += 1
+                        if retries <= self.__retries:
+                            continue
+                        else:
+                            self.__logger.error(f'Fatal error occurred when {logstr}: {e}')
+                            return {
+                                'error':True,
+                                'errorType':type(e).__name__,
+                                'errorMessage':resp.reason,
+                                'responseStatus':resp.status
+                            }
+                    try:
+                        return await resp.json()
+                    except Exception as e:
+                        self.__logger.error(f'Fatal error occurred when {logstr}: {e}')
+                        return {
+                            'error':True,
+                            'errorType':type(e).__name__,
+                            'errorMessage':str(e),
+                            'responseStatus':resp.status
+                        }
+            except aiohttp.ClientConnectorError as e:
+                retries += 1
+                if retries <= self.__retries:
+                    self.__logger.debug('Network error, retry...')
+                    continue
+                else:
+                    self.__logger.error(f'Network error occurred when {logstr}: {e}')
+                    return {
+                        'error':True,
+                        'errorType':type(e).__name__,
+                        'errorMessage':str(e)
+                    }
+
+    async def __getjson_multi_urls(self, urls, params):
+        if len(urls) <= self.__concurrency:
+            return await asyncio.gather(*[self.__getjson(url, params) for url in urls], return_exceptions=True)
         else:
-            return None
+            result = list()
+            start = 0
+            end = self.__concurrency
+            while True:
+                result.extend(await asyncio.gather(*[self.__getjson(url, params) for url in urls[start:end]],
+                                                   return_exceptions=True))
+                if end > len(urls):
+                    return result
+                else:
+                    start = end
+                    end += self.__concurrency
 
-    @staticmethod
-    def price_data_parse(gameid, price_data, country):
-        if price_data == None:
-            return {'gameId':gameid,
-                    'currency':'',
-                    'basePrice':None,
-                    'finalPrice':None,
-                    'country':country.upper()}
+    async def __getjson_multi_params(self, url, params):
+        if len(params) <= self.__concurrency:
+            return await asyncio.gather(*[self.__getjson(url, param) for param in params], return_exceptions=True)
         else:
-            if '_embedded' in price_data:
-                price_data = price_data['_embedded']['prices'][0]
-                price = dict()
-                price['gameId'] = gameid
-                price['currency'] = price_data['currency']['code']
-                price['basePrice'] = round(int(price_data['basePrice'].split(' ')[0]) * 0.01, 2)
-                price['finalPrice'] = round(int(price_data['finalPrice'].split(' ')[0]) * 0.01, 2)
-                price['country'] = country.upper()
-                return price
-            else:
-                return {'gameId':gameid,
-                        'currency':'',
-                        'basePrice':None,
-                        'finalPrice':None,
-                        'country':country.upper()}
+            result = list()
+            start = 0
+            end = self.__concurrency
+            while True:
+                result.extend(await asyncio.gather(*[self.__getjson(url, param) for param in params[start:end]],
+                                                   return_exceptions=True))
+                if end > len(params):
+                    return result
+                else:
+                    start = end
+                    end += self.__concurrency
 
 
-class API(object):
+class APIUtility():
 
     def __init__(self):
-        self._hosts = dict()
-        self._hosts['detail'] = 'https://api.gog.com/v2/games'
-        self._hosts['price'] = 'https://api.gog.com/products/{gameid}/prices'
-        self._hosts['multiprice'] = 'https://api.gog.com/products/prices'
-        self._hosts['region'] = 'https://countrycode.org/api/countryCode/countryMenu'
-        self._hosts['rating'] = 'https://reviews.gog.com/v1/products/{gameid}/averageRating?reviewer=verified_owner'
-        self._timeout = 5
-        self._retries = 5
-        self._sess = requests.Session()
-        self._sess.mount('https://', HTTPAdapter(max_retries=self._retries))
-        self._sess.mount('http://', HTTPAdapter(max_retries=self._retries))
-        self._ua = UserAgent()
-        self._logger = logging.getLogger('GOGDB.GOGAPI')
+        self.__logger = logging.getLogger('GOGDB.UTILITY')
+
+    def errorchk(self, jsondata):
+        if not isinstance(jsondata, dict):
+            return False
+        error = jsondata.get('error', False)
+        if error:
+            self.__logger.warning('Error occurred on request, may lost data')
+        return error
+
+    def product_notfoundchk(self, productid, productdata):
+        if "message" in productdata:
+            msg = productdata['message']
+            if 'not found' in msg:
+                self.__logger.error(f'Product {productid} not found')
+                return True
+            else:
+                self.__logger.error(f'Product id may error, product data here {productdata}')
+                return False
+        else:
+            return False
+
+    def product_errorchk(self, productid, productdata):
+        if self.errorchk(productdata):
+            productdata['id'] = productid
+            return productdata
+
+        if self.product_notfoundchk(productid, productdata):
+            err_msg = {
+                'id':productid,
+                'error':True,
+                'responseStatus':404,
+                'errorMessage':'Not Found',
+                'errorType':'ClientResponseError'
+            }
+            return err_msg
+
+        return productdata
 
 
-    @property
-    def logger(self):
-        return self._logger
+class API():
 
-    @property
-    def _req_sess(self):
-        self._sess.headers.update({'User-Agent':self._ua.random})
-        return self._sess
+    def __init__(self, retries=5, concurrency=10):
+        self.__hosts = dict()
+        self.__hosts['detail'] = 'https://api.gog.com/v2/games'
+        self.__hosts['price'] = 'https://api.gog.com/products/{productid}/prices'
+        self.__hosts['multiprice'] = 'https://api.gog.com/products/prices'
+        self.__hosts['region'] = 'https://countrycode.org/api/countryCode/countryMenu'
+        self.__hosts['rating'] = 'https://reviews.gog.com/v1/products/{productid}/averageRating?reviewer=verified_owner'
+        self.__hosts['auth'] = 'https://auth.gog.com/auth'
+        self.__hosts['login'] = 'https://login.gog.com/login_check'
+        self.__hosts['token'] = 'https://auth.gog.com/token'
 
-    @property
-    def hosts(self):
-        return self._hosts
+        self.__client_id = '46899977096215655'
+        self.__client_secret = '9d85c43b1482497dbbce61f6e4aa173a433796eeae2ca8c5f6129f2dc4de46d9'
+        self.__redirect_uri = 'https://embed.gog.com/on_login_success?origin=client'
 
-    @property
-    def timeout(self):
-        return self._timeout
+        self.__auth = dict()
+        self.__auth['auth'] = {
+            'client_id': self.__client_id,
+            'redirect_uri': self.__redirect_uri,
+            'response_type': 'code',
+            'layout': 'default'
+        }
+        self.__auth['login'] = {
+            'login[username]': '',
+            'login[password]': '',
+            'login[login_flow]': 'default',
+            'login[_token]': ''
+        }
+        self.__auth['token'] = {
+            'client_id': self.__client_id,
+            'client_secret': self.__client_secret,
+            'grant_type': 'authorization_code',
+            'code': '',
+            'redirect_uri': self.__redirect_uri
+        }
+        self.__auth['refresh'] = {
+            'client_id': self.__client_id,
+            'client_secret': self.__client_secret,
+            'grant_type': 'refresh_token',
+            'refresh_token': ''
+        }
 
-    @timeout.setter
-    def timeout(self, value):
-        if type(value) != type(int()):
-            raise TypeError('Invalid Type')
-        self._timeout = value
+        self.__retries = retries
+        self.__concurrency = concurrency
+        self.__logger = logging.getLogger('GOGDB.GOGAPI')
+
+        self.__utl = APIUtility()
 
     @property
     def retries(self):
-        return self._retries
+        return self.__retries
 
     @retries.setter
     def retries(self, value):
-        if type(value) != type(int()):
-            raise TypeError('Invalid Type')
-        self._retries = value
+        self.__retries = value
 
+    @property
+    def concurrency(self):
+        return self.__concurrency
 
-    def update_proxies(self, proxies):
-        if type(proxies) != type(dict()):
-            raise TypeError('Invalid Type')
-        else:
-            self._req_sess.proxies.update(proxies)
+    @concurrency.setter
+    def concurrency(self, value):
+        self.__concurrency = value
 
+    @property
+    def logger(self):
+        return self.__logger
 
-    def get_total_num(self):
-        fst_page_data = self._req_sess.get(self.hosts['detail'], timeout=self.timeout).json()
-        limit = fst_page_data['limit']
-        pages = fst_page_data['pages']
+    @property
+    def hosts(self):
+        return self.__hosts
 
-        lst_page_data = self._req_sess.get(fst_page_data['_links']['last']['href'], timeout=self.timeout).json()
-        return limit * (pages - 1) + len(lst_page_data['_embedded']['items'])
+    async def get_total_num(self):
+        self.__logger.debug(f"Call {self.get_total_num.__name__}")
+        async with APIRequester(self.__retries, self.__concurrency) as request:
+            fst_page = await request.getjson(self.__hosts['detail'])
 
+            if self.__utl.errorchk(fst_page):
+                return -1
+            try:
+                limit = fst_page['limit']
+                pages = fst_page['pages']
+                lst_page_url = fst_page['_links']['last']['href']
+            except Exception as e:
+                self.__logger.error(f"{self.get_total_num.__name__} {type(e).__name__} {e}")
+                return -1
 
-    def get_game_id_in_page(self, page, limit):
-        payload = {'page':page, 'limit':limit, 'locale':'en-US'}
-        page_data = self._req_sess.get(self.hosts['detail'], params=payload, timeout=self.timeout).json()
-        items = page_data['_embedded']['items']
+            lst_page = await request.getjson(lst_page_url)
+            if self.__utl.errorchk(lst_page):
+                return -1
+            try:
+                lst_num = len(lst_page['_embedded']['items'])
+            except Exception as e:
+                self.__logger.error(f"[{self.get_total_num.__name__}] {type(e).__name__} {e}")
+                return -1
 
-        for item in items:
-            yield item['_embedded']['product']['id']
+            return limit * (pages - 1) + lst_num
 
+    async def get_product_id_in_page(self, page, limit=50):
+        self.__logger.info(f"Call {self.get_product_id_in_page.__name__}")
+        params = {'page':page, 'limit':limit, 'locale':'en-US'}
+        async with APIRequester(self.__retries, self.__concurrency) as request:
+            page_data = await request.getjson(self.hosts['detail'], params=params)
+            if self.__utl.errorchk(page_data):
+                return [-1]
+            try:
+                items = page_data['_embedded']['items']
+            except Exception as e:
+                self.__logger.error(f"[{self.get_product_id_in_page.__name__}] {type(e).__name__} {e}")
+                return [-1]
 
-    def get_all_game_id(self):
-        pages = self._req_sess.get(self.hosts['detail'], timeout=self.timeout).json()['pages']
-        pages = range(1, pages+1)
-        urls = [self.hosts['detail'] + '?limit=50&page=' + str(p) for p in pages]
-        rs = (grequests.get(u, timeout=self.timeout, session=self._req_sess) for u in urls)
-        results = grequests.imap(rs, size=10)
-
-        for rep in results:
-            items = rep.json()['_embedded']['items']
+            result = list()
             for item in items:
-                yield item['_embedded']['product']['id']
+                try:
+                    result.append(item['_embedded']['product']['id'])
+                except Exception as e:
+                    self.__logger.error(f"{self.get_product_id_in_page.__name__} {type(e).__name__} {e}")
+                    result.append(-1)           # Error Flag
+            return result
 
+    async def get_all_product_id(self):
+        self.__logger.info("Call %s" % self.get_all_product_id.__name__)
+        async with APIRequester(self.__retries, self.__concurrency) as request:
+            pages_data = await request.getjson(self.__hosts['detail'])
+            if self.__utl.errorchk(pages_data):
+                return [-1]
+            try:
+                pages = pages_data['pages']
+            except Exception as e:
+                self.__logger.error(f"{self.get_all_product_id.__name__} {type(e).__name__} {e}")
+                return [-1]
+            params = [{'page':page, 'locale':'en-US'} for page in range(1, pages+1)]
+            results = await request.getjson(self.__hosts['detail'], params)
 
-    def get_game_data(self, game_id):
-        payload = {'locale':'en-US'}
+            sum_ids = list()
+            for result in results:
+                try:
+                    items = result['_embedded']['items']
+                except Exception as e:
+                    self.__logger.error(f"{self.get_all_product_id.__name__} {type(e).__name__} {e}")
+                    sum_ids.append(-1)          # Error Flag
+                    continue
 
-        if type(game_id) == type(int()) or type(game_id) == type(str()):
-            self._logger.info('read game data, ids=[%s]' % str(game_id))
-            yield self._req_sess.get(self.hosts['detail'] + '/' + str(game_id), params=payload, timeout=self.timeout).json()
+                ids = list()
+                for item in items:
+                    try:
+                        ids.append(item['_embedded']['product']['id'])
+                    except Exception as e:
+                        self.__logger.error(f"{self.get_all_product_id.__name__} {type(e).__name__} {e}")
+                        ids.append(-1)          # Error Flag
+                        continue
+                sum_ids.extend(ids)
 
-        elif type(game_id) == type(list()) or type(game_id) == type(tuple()):
-            self._logger.info('read game data, ids=[%s]' % ', '.join(str(gid) for gid in game_id))
-            urls = [self.hosts['detail'] + '/' + str(gid) for gid in game_id]
-            rs = (grequests.get(u, timeout=self.timeout, session=self._req_sess, params=payload) for u in urls)
-            results = grequests.map(rs, size=10)
-            for rep in results:
-                yield rep.json()
+            return sum_ids
+
+    async def get_product_data(self, product_id):
+        params = {'locale':'en-US'}
+
+        if isinstance(product_id, int) or isinstance(product_id, str):
+            self.__logger.info(f'Call {self.get_product_data.__name__} ids=[{str(product_id)}]')
+            async with APIRequester(self.__retries, self.__concurrency) as request:
+                return self.__utl.product_errorchk(product_id,
+                        await request.getjson(f"{self.__hosts['detail']}/{product_id}", params))
+
+        elif isinstance(product_id, list) or isinstance(product_id, tuple):
+            self.__logger.info(f"Call {self.get_product_data.__name__} ids=[{', '.join(str(proid) for proid in product_id)}]")
+            urls = [f"{self.__hosts['detail']}/{proid}" for proid in product_id]
+
+            async with APIRequester(self.__retries, self.__concurrency) as request:
+                product_datas = await request.getjson(urls, params)
+                for i in range(0, len(product_id)):
+                    product_datas[i] = self.__utl.product_errorchk(product_id[i], product_datas[i])
+
+                return product_datas
+
         else:
-            raise TypeError('Invalid Type')
+            return {
+                'error':True,
+                'errorType':'TypeError',
+                'errorMessage':'product_id just support int, string, list or tuple',
+                'id':product_id
+            }
 
+    async def get_countries(self):
+        async with APIRequester(self.__retries, self.__concurrency) as request:
+            return await request.getjson(self.__hosts['region'])
 
-    def get_game_price(self, game_id, country_code='US'):
-        if type(game_id) == type(int()) or type(game_id) == type(str()):
-            self._logger.info('read game price, ids=[%s]' % str(game_id))
-            price_url = self.hosts['price'].replace('{gameid}', str(game_id))
-            payload = {'countryCode':country_code}
+    async def login(self, username, passwd):
+        async with APIRequester(self.__retries, self.__concurrency) as request:
+            authrep = await request.get(self.__hosts['auth'], self.__auth['auth'])
+            if self.__utl.errorchk(authrep):
+                self.__logger.error(f'login error')
+                authrep['login_success'] = False
+                return authrep
 
-            price_data = self._req_sess.get(price_url, timeout=self.timeout, params=payload).json()
-            yield utility.price_data_parse(game_id, price_data, country_code)
+            etree = html5lib.parse(authrep['text'], treebuilder='lxml', namespaceHTMLElements=False)
 
-        elif type(game_id) == type(list()) or type(game_id) == type(tuple()):
-            price_url = self.hosts['multiprice']
-            ids = ','.join(str(gid) for gid in game_id)
-            self._logger.info('read game price, ids=[%s]' % ids.replace(',', ', '))
-            payload = {'ids':ids, 'countryCode':country_code}
-            price_data = self._req_sess.get(price_url, timeout=self.timeout, params=payload).json()['_embedded']['items']
+            # check reCAPTCHA
+            if len(etree.findall('.//div[@class="g-recaptcha form__recaptcha"]')) > 0:
+                self.__logger.error("login error, GOG is asking for a reCAPTCHA :( try again in a few minutes.")
+                return {
+                    'login_success': False
+                }
+            # find login token
+            for elm in etree.findall('.//input'):
+                if elm.attrib['id'] == 'login__token':
+                    self.__auth['login']['login[_token]'] = elm.attrib['value']
 
-            if len(price_data) == 0:
-                for gid in game_id:
-                    yield utility.price_data_parse(gid, None, country_code)
+            # post data to login
+            self.__auth['login']['login[username]'] = username
+            self.__auth['login']['login[password]'] = passwd
+            loginrep = await request.post(self.__hosts['login'], self.__auth['login'], authrep['cookies'])
+            if self.__utl.errorchk(loginrep):
+                self.__logger.error(f'login error')
+                loginrep['login_success'] = False
+                return loginrep
+            if 'on_login_success' not in str(loginrep['url']):
+                return {
+                    'login_success': False
+                }
             else:
-                gid_point = 0
-                for gid in game_id:
-                    if len(price_data) <= gid_point:
-                        break
-                    pdata_now = price_data[gid_point]
-                    if str(gid) == utility.get_game_id_from_url(pdata_now['_links']['self']['href']):
-                        price = utility.price_data_parse(gid, pdata_now, country_code)
-                        gid_point += 1
-                        yield price
-                    else:
-                        yield utility.price_data_parse(gid, None, country_code)
-        else:
-            raise TypeError('Invalid Type')
+                self.__auth['token']['code'] = loginrep['url'].query['code']
 
-
-    def get_game_base_price(self, game_id, country_code='US'):
-        self._logger.info('read game base price')
-        price_data = self.get_game_price(game_id, country_code)
-        for pd in price_data:
-            yield pd['basePrice']
-
-
-    def get_game_final_price(self, game_id, country_code='US'):
-        self._logger.info('read game final price')
-        price_data = self.get_game_price(game_id, country_code)
-        for pd in price_data:
-            yield pd['finalPrice']
-
-
-    def get_game_price_currency(self, game_id, country_code='US'):
-        self._logger.info('read game price currency')
-        price_data = self.get_game_price(game_id, country_code)
-        for pd in price_data:
-            yield pd['currency']
-
-
-    def get_game_discount(self, game_id, country_code='US'):
-        self._logger.info('read game discount')
-        price_data = self.get_game_price(game_id, country_code)
-        for pd in price_data:
-            if pd['basePrice'] != None:
-                if pd['finalPrice'] == 0:
-                    yield {'gameId':pd['gameId'], 'discount':100}
-                else:
-                    yield {'gameId':pd['gameId'],
-                            'discount':int(round(1.0 - pd['finalPrice'] / pd['basePrice'], 2) * 100)}
+            # get access token
+            tokenrep = await request.get(self.__hosts['token'], self.__auth['token'], loginrep['cookies'])
+            if self.__utl.errorchk(tokenrep):
+                self.__logger.error(f'login error')
+                tokenrep['login_success'] = False
+                return tokenrep
             else:
-                yield {'gameId':pd['gameId'], 'discount':None}
+                token = json.loads(tokenrep['text'])
+                token['login_success'] = True
+                token['last_update'] = datetime.utcnow()
+                return token
 
-
-    def get_region_table(self):
-        region_host = self.hosts['region']
-        region_data = self._req_sess.get(region_host, timeout=self.timeout).json()
-
-        region_table = {}
-        for region in region_data:
-            region_table[region['code']] = region['name']
-
-        return region_table
-
-
-    def get_game_global_price(self, game_id, countries):
-        price_url = self.hosts['price'].replace('{gameid}', str(game_id))
-
-        self._logger.info('read game global price, ids=[%s]' % str(game_id))
-
-        rs = (grequests.get(price_url, timeout=self.timeout, session=self._req_sess, params={'countryCode':ct}) for ct in countries)
-        results = grequests.map(rs, size=10)
-        point = 0
-        for r in results:
-            price_data = r.json()
-            price = utility.price_data_parse(utility.get_game_id_from_url(r.url), price_data, countries[point])
-            point += 1
-            yield price
-
-
-    def get_multi_game_global_price(self, game_id, countries):
-        if type(game_id) != type(list()) and type(game_id) != type(tuple()):
-            raise TypeError('Invalid Type')
-
-        ids = ','.join(str(gid) for gid in game_id)
-        self._logger.info('read game global price, ids=[%s]' % ids.replace(',', ', '))
-
-        rs = (grequests.get(self.hosts['multiprice'], timeout=self.timeout, session=self._req_sess,
-            params={'ids':ids, 'countryCode':country}) for country in countries)
-        results = grequests.map(rs, size=10)
-
-        country_point = 0
-        for r in results:
-            gid_point = 0
-            price_data = r.json()['_embedded']['items']
-            if len(price_data) == 0:
-                for gid in game_id:
-                    yield utility.price_data_parse(gid, None, countries[country_point])
+    async def refresh_token(self, rtoken):
+        self.__auth['refresh']['refresh_token'] = rtoken
+        async with APIRequester(self.__retries, self.__concurrency) as request:
+            tokenrep = await request.getjson(self.__hosts['token'], self.__auth['refresh'])
+            if self.__utl.errorchk(tokenrep):
+                self.logger.error(f'refresh token error')
+                return tokenrep
             else:
-                for gid in game_id:
-                    if len(price_data) <= gid_point:
-                        break
-                    pdata_now = price_data[gid_point]
-                    if str(gid) == utility.get_game_id_from_url(pdata_now['_links']['self']['href']):
-                        price = utility.price_data_parse(gid, pdata_now, countries[country_point])
-                        gid_point += 1
-                        yield price
-                    else:
-                        yield utility.price_data_parse(gid, None, countries[country_point])
-            country_point += 1
+                token = tokenrep
+                token['last_update'] = datetime.utcnow()
+                return token
 
 
-    def get_game_rating(self, game_id):
-        if type(game_id) == type(int()) or type(game_id) == type(str()):
-            yield self._req_sess.get(self.hosts['rating'].replace('{gameid}', str(game_id)), timeout=self.timeout).json()['value']
-        elif type(game_id) == type(list()) or type(game_id) == type(tuple()):
-            urls = [self.hosts['rating'].replace('{gameid}', str(gid)) for gid in game_id]
-            rs = (grequests.get(u, timeout=self.timeout, session=self._req_sess) for u in urls)
-            results = grequests.map(rs, size=10)
-            for r in results:
-                yield r.json()['value']
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     import time
 
     logger = logging.getLogger('GOGDB')
@@ -296,19 +518,20 @@ if __name__ == '__main__':
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
-
-    api = API()
-
-    logger.debug('Games on GOG in total: %s' %(api.get_total_num()))
-
+    api = API(concurrency=16)
+    logger.info(f'Total Products: {asyncio.run(api.get_total_num())}')
     start = time.time()
-    list(api.get_game_price([1,2,3,4,5,6,7,8,9,10]))
-    logger.debug('get 10 games price time usage: %f' %(time.time() - start))
+    ids = asyncio.run(api.get_all_product_id())
+    logger.info(f'Total Products: {len(ids)}')
+    logger.info(f'Get All Product ID time usage: {time.time() - start}')
+    if -1 in ids:
+        logger.error('Error occurred when get all product id')
 
-    start = time.time()
-    list(api.get_game_data([1,2,3,4,5,6,7,8,9,10]))
-    logger.debug('get 10 games data time usage: %f' %(time.time() - start))
-
-    start = time.time()
-    list(api.get_multi_game_global_price([1,2,3,4,5,6,7,8,9,10], api.get_region_table().keys()))
-    logger.debug('get 10 games price in 240 countries time usage: %f' %(time.time() - start))
+    proid = 1943729714
+    product_data = asyncio.run(api.get_product_data(proid))
+    if product_data.get('error', False):
+        logger.error(f'Error occurred when get product {proid}')
+    else:
+        logger.info(f'Get product {proid} success')
+    asyncio.run(api.get_product_data([1,2,3,4,5,6,7,8,9,0]))
+    asyncio.run(api.get_countries())
