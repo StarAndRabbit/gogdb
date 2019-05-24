@@ -478,6 +478,7 @@ class API():
                 loginrep['login_success'] = False
                 return loginrep
             if 'on_login_success' not in str(loginrep['url']):
+                self.__logger.error(f'login error, invalid username or password')
                 return {
                     'login_success': False
                 }
@@ -501,7 +502,7 @@ class API():
         async with APIRequester(self.__retries, self.__concurrency) as request:
             tokenrep = await request.getjson(self.__hosts['token'], self.__auth['refresh'])
             if self.__utl.errorchk(tokenrep):
-                self.logger.error(f'refresh token error')
+                self.logger.error(f'refresh error, please check refresh_token')
                 return tokenrep
             else:
                 token = tokenrep
