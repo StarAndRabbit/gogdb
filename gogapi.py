@@ -475,6 +475,28 @@ class API():
             return await request.getjson(self.__hosts['region'])
 
     async def get_product_prices(self, product_id, countries):
+        '''
+        get product's price in different countries
+        :param product_id: product id, can be int, string or list
+        :param countries: countries, can be string or list
+        :return: result format like this
+                    {
+                        '<product id>': {
+                            'basePrice': {
+                                '<country code>': {
+                                    'defaultCurrency': <currency>,
+                                    '<currency>': <price>(decimal object)
+                                }
+                            }
+                            'finalPrice': {
+                                '<country code>': {
+                                    'defaultCurrency': <currency>,
+                                    '<currency>': <price>(decimal object)
+                                }
+                            }
+                        }
+                    }
+        '''
         id_list = product_id if isinstance(product_id, list) else [str(product_id)]
         ids = ','.join(id_list)
         if not isinstance(countries, list):
@@ -492,11 +514,18 @@ class API():
                         countryCode = self.__utl.get_country_code_from_url(item['_links']['self']['href'])
                         result_list[prod_id]['basePrice'][countryCode] = dict()
                         result_list[prod_id]['finalPrice'][countryCode] = dict()
+
+                        result_list[prod_id]['basePrice'][countryCode]['defaultCurrency'] = \
+                            item['_embedded']['prices'][0]['currency']['code']
+                        result_list[prod_id]['finalPrice'][countryCode]['defaultCurrency'] = \
+                            item['_embedded']['prices'][0]['currency']['code']
+
                         for price in item['_embedded']['prices']:
-                            result_list[prod_id]['basePrice'][countryCode][price['currency']['code']] = \
-                                self.__utl.price_parse(price['basePrice'])
-                            result_list[prod_id]['finalPrice'][countryCode][price['currency']['code']] = \
-                                self.__utl.price_parse(price['finalPrice'])
+                            base_price = self.__utl.price_parse(price['basePrice'])
+                            final_price = self.__utl.price_parse(price['finalPrice'])
+                            result_list[prod_id]['basePrice'][countryCode][price['currency']['code']] = base_price
+                            result_list[prod_id]['finalPrice'][countryCode][price['currency']['code']] = final_price
+
             return result_list
 
     async def login(self, username, passwd):
