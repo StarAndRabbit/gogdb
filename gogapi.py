@@ -6,7 +6,9 @@ from fake_useragent import UserAgent
 import logging
 import html5lib
 import json
+import re
 from datetime import datetime
+from decimal import Decimal
 
 
 class APIRequester:
@@ -258,6 +260,30 @@ class APIUtility():
 
         return productdata
 
+    def price_parse(self, price_string):
+        '''
+        format price string into dict
+        :param price_string: price string format like "999 USD"
+        :return: Decimal object
+        '''
+        price_tmp = price_string.strip().split(' ')
+        price_tmp[0] = price_tmp[0][:len(price_tmp[0])-2] + '.' + price_tmp[0][len(price_tmp[0])-2:]
+        return Decimal(price_tmp[0]).quantize(Decimal('.00'))
+
+    def get_id_from_url(self, url):
+        t = re.findall('\d+', url)
+        if t:
+            return max(t, key=len)
+        else:
+            return None
+
+    def get_country_code_from_url(self, url):
+        t = re.findall('countryCode=.*', url)
+        if t:
+            return max(t, key=len).strip().split('=')[1].lower()
+        else:
+            return None
+
 
 class API():
 
@@ -448,6 +474,31 @@ class API():
         async with APIRequester(self.__retries, self.__concurrency) as request:
             return await request.getjson(self.__hosts['region'])
 
+    async def get_product_prices(self, product_id, countries):
+        id_list = product_id if isinstance(product_id, list) else [str(product_id)]
+        ids = ','.join(id_list)
+        if not isinstance(countries, list):
+            params = [{'ids':ids, 'countryCode':str(countries)}]
+        else:
+            params = [{'ids':ids, 'countryCode':str(countryCode)} for countryCode in countries]
+
+        async with APIRequester(self.__retries, self.__concurrency) as request:
+            rep = await request.getjson(self.__hosts['multiprice'], params)
+            result_list = {prodid:{'basePrice':dict(), 'finalPrice':dict()} for prodid in id_list}
+            for data in rep:
+                if not self.__utl.errorchk(data):
+                    for item in data['_embedded']['items']:
+                        prod_id = self.__utl.get_id_from_url(item['_links']['self']['href'])
+                        countryCode = self.__utl.get_country_code_from_url(item['_links']['self']['href'])
+                        result_list[prod_id]['basePrice'][countryCode] = dict()
+                        result_list[prod_id]['finalPrice'][countryCode] = dict()
+                        for price in item['_embedded']['prices']:
+                            result_list[prod_id]['basePrice'][countryCode][price['currency']['code']] = \
+                                self.__utl.price_parse(price['basePrice'])
+                            result_list[prod_id]['finalPrice'][countryCode][price['currency']['code']] = \
+                                self.__utl.price_parse(price['finalPrice'])
+            return result_list
+
     async def login(self, username, passwd):
         async with APIRequester(self.__retries, self.__concurrency) as request:
             authrep = await request.get(self.__hosts['auth'], self.__auth['auth'])
@@ -536,3 +587,4 @@ if __name__ == "__main__":
         logger.info(f'Get product {proid} success')
     asyncio.run(api.get_product_data([1,2,3,4,5,6,7,8,9,0]))
     asyncio.run(api.get_countries())
+    asyncio.run(api.get_product_prices(['1', '2', '3', '4', '5'], ['CN', 'RU', 'US']))
