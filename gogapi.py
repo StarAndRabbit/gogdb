@@ -297,6 +297,7 @@ class API():
         self.__hosts['auth'] = 'https://auth.gog.com/auth'
         self.__hosts['login'] = 'https://login.gog.com/login_check'
         self.__hosts['token'] = 'https://auth.gog.com/token'
+        self.__hosts['extend_detail'] = 'https://api.gog.com/products'
 
         self.__client_id = '46899977096215655'
         self.__client_secret = '9d85c43b1482497dbbce61f6e4aa173a433796eeae2ca8c5f6129f2dc4de46d9'
@@ -446,29 +447,28 @@ class API():
         params = {'locale':'en-US'}
 
         if isinstance(product_id, int) or isinstance(product_id, str):
-            self.__logger.info(f'Call {self.get_product_data.__name__} ids=[{str(product_id)}]')
-            async with APIRequester(self.__retries, self.__concurrency) as request:
-                return self.__utl.product_errorchk(product_id,
-                        await request.getjson(f"{self.__hosts['detail']}/{product_id}", params))
-
+            ids = [str(product_id)]
         elif isinstance(product_id, list) or isinstance(product_id, tuple):
-            self.__logger.info(f"Call {self.get_product_data.__name__} ids=[{', '.join(str(proid) for proid in product_id)}]")
-            urls = [f"{self.__hosts['detail']}/{proid}" for proid in product_id]
-
-            async with APIRequester(self.__retries, self.__concurrency) as request:
-                product_datas = await request.getjson(urls, params)
-                for i in range(0, len(product_id)):
-                    product_datas[i] = self.__utl.product_errorchk(product_id[i], product_datas[i])
-
-                return product_datas
-
+            ids = list(map(str, product_id))
         else:
             return {
-                'error':True,
-                'errorType':'TypeError',
-                'errorMessage':'product_id just support int, string, list or tuple',
-                'id':product_id
+                'error': True,
+                'errorType': 'TypeError',
+                'errorMessage': 'product_id just support int, string, list or tuple',
+                'id': product_id
             }
+
+        self.__logger.info(
+            f"Call {self.get_product_data.__name__} ids=[{', '.join(str(proid) for proid in ids)}]")
+
+        urls = [f"{self.__hosts['detail']}/{proid}" for proid in ids]
+
+        async with APIRequester(self.__retries, self.__concurrency) as request:
+            product_datas = await request.getjson(urls, params)
+            for i in range(0, len(ids)):
+                product_datas[i] = self.__utl.product_errorchk(ids[i], product_datas[i])
+
+            return product_datas
 
     async def get_countries(self):
         async with APIRequester(self.__retries, self.__concurrency) as request:
@@ -497,7 +497,7 @@ class API():
                         }
                     }
         '''
-        id_list = product_id if isinstance(product_id, list) else [str(product_id)]
+        id_list = list(map(str, product_id)) if isinstance(product_id, list) else [str(product_id)]
         ids = ','.join(id_list)
         if not isinstance(countries, list):
             params = [{'ids':ids, 'countryCode':str(countries)}]
@@ -527,6 +527,54 @@ class API():
                             result_list[prod_id]['finalPrice'][countryCode][price['currency']['code']] = final_price
 
             return result_list
+
+    async def get_rating(self, product_id):
+        if isinstance(product_id, int) or isinstance(product_id, str):
+            ids = [str(product_id)]
+        elif isinstance(product_id, list) or isinstance(product_id, tuple):
+            ids = list(map(str, product_id))
+        else:
+            return {
+                'error': True,
+                'errorType': 'TypeError',
+                'errorMessage': 'product_id just support int, string, list or tuple',
+                'id': product_id
+            }
+
+        result = {prodid:{} for prodid in ids}
+        self.__logger.info(
+            f"Call {self.get_rating.__name__} ids=[{', '.join(str(proid) for proid in ids)}]")
+        urls = [f"{self.__hosts['rating'].replace('{productid}', proid)}" for proid in ids]
+
+        async with APIRequester(self.__retries, self.__concurrency) as request:
+            rating_datas = await request.getjson(urls)
+            for i in range(0, len(ids)):
+                if not self.__utl.errorchk(rating_datas[i]):
+                    result[ids[i]] = rating_datas[i]
+                    result[ids[i]]['value'] = Decimal(result[ids[i]]['value']).quantize(Decimal('.00'))
+
+            return result
+
+    async def get_extend_detail(self, product_id):
+        id_list = list(map(str, product_id)) if isinstance(product_id, list) else [str(product_id)]
+        ids = ','.join(id_list)
+        params = {'ids':ids, 'expand':'downloads'}
+
+        self.__logger.info(f"Call {self.get_extend_detail.__name__} ids=[{ids}]")
+
+        async with APIRequester(self.__retries, self.__concurrency) as request:
+            rep = await request.getjson(self.__hosts['extend_detail'], params)
+            result = list()
+            for detail in rep:
+                if not self.__utl.errorchk(detail):
+                    tmp_detail = dict()
+                    tmp_detail['id'] = detail['id']
+                    tmp_detail['slug'] = detail['slug']
+                    tmp_detail['content_system_compatibility'] = detail['content_system_compatibility']
+                    tmp_detail['downloads'] = detail['downloads']
+                    result.append(tmp_detail)
+
+            return result
 
     async def login(self, username, passwd):
         async with APIRequester(self.__retries, self.__concurrency) as request:
@@ -610,10 +658,12 @@ if __name__ == "__main__":
 
     proid = 1943729714
     product_data = asyncio.run(api.get_product_data(proid))
-    if product_data.get('error', False):
+    if product_data[0].get('error', False):
         logger.error(f'Error occurred when get product {proid}')
     else:
         logger.info(f'Get product {proid} success')
     asyncio.run(api.get_product_data([1,2,3,4,5,6,7,8,9,0]))
     asyncio.run(api.get_countries())
     asyncio.run(api.get_product_prices(['1', '2', '3', '4', '5'], ['CN', 'RU', 'US']))
+    asyncio.run(api.get_rating([1,2,3,4,5]))
+    asyncio.run(api.get_extend_detail([1,2,3,4,5]))
