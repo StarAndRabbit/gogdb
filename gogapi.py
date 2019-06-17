@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-import aiohttp, asyncio
+import aiohttp
+import asyncio
 from fake_useragent import UserAgent
 import logging
 import html5lib
@@ -20,7 +21,7 @@ class APIRequester:
 
     async def __aenter__(self):
         self.__ua = UserAgent().random
-        self.__session = aiohttp.ClientSession(headers={'User-Agent':self.__ua})
+        self.__session = aiohttp.ClientSession(headers={'User-Agent': self.__ua})
         return self
 
     async def __aexit__(self, *err):
@@ -132,9 +133,9 @@ class APIRequester:
                     }
 
     async def getjson(self, url, params=None):
-        if isinstance(url, str) and (isinstance(params, dict) or params == None):
+        if isinstance(url, str) and (isinstance(params, dict) or params is None):
             return await self.__getjson(url, params)
-        elif isinstance(url, list) and (isinstance(params, dict) or params == None):
+        elif isinstance(url, list) and (isinstance(params, dict) or params is None):
             return await self.__getjson_multi_urls(url, params)
         elif isinstance(url, str) and isinstance(params, list):
             return await self.__getjson_multi_params(url, params)
@@ -157,20 +158,20 @@ class APIRequester:
                         else:
                             self.__logger.error(f'Fatal error occurred when {logstr}: {e}')
                             return {
-                                'error':True,
-                                'errorType':type(e).__name__,
-                                'errorMessage':resp.reason,
-                                'responseStatus':resp.status
+                                'error': True,
+                                'errorType': type(e).__name__,
+                                'errorMessage': resp.reason,
+                                'responseStatus': resp.status
                             }
                     try:
                         return await resp.json()
                     except Exception as e:
                         self.__logger.error(f'Fatal error occurred when {logstr}: {e}')
                         return {
-                            'error':True,
-                            'errorType':type(e).__name__,
-                            'errorMessage':str(e),
-                            'responseStatus':resp.status
+                            'error': True,
+                            'errorType': type(e).__name__,
+                            'errorMessage': str(e),
+                            'responseStatus': resp.status
                         }
             except aiohttp.ClientConnectorError as e:
                 retries += 1
@@ -180,9 +181,9 @@ class APIRequester:
                 else:
                     self.__logger.error(f'Network error occurred when {logstr}: {e}')
                     return {
-                        'error':True,
-                        'errorType':type(e).__name__,
-                        'errorMessage':str(e)
+                        'error': True,
+                        'errorType': type(e).__name__,
+                        'errorMessage': str(e)
                     }
 
     async def __getjson_multi_urls(self, urls, params):
@@ -190,35 +191,36 @@ class APIRequester:
             return await asyncio.gather(*[self.__getjson(url, params) for url in urls], return_exceptions=True)
         else:
             result = list()
-            start = 0
-            end = self.__concurrency
+            url_start = 0
+            url_end = self.__concurrency
             while True:
-                result.extend(await asyncio.gather(*[self.__getjson(url, params) for url in urls[start:end]],
+                result.extend(await asyncio.gather(*[self.__getjson(url, params) for url in urls[url_start:url_end]],
                                                    return_exceptions=True))
-                if end > len(urls):
+                if url_end > len(urls):
                     return result
                 else:
-                    start = end
-                    end += self.__concurrency
+                    url_start = url_end
+                    url_end += self.__concurrency
 
     async def __getjson_multi_params(self, url, params):
         if len(params) <= self.__concurrency:
             return await asyncio.gather(*[self.__getjson(url, param) for param in params], return_exceptions=True)
         else:
             result = list()
-            start = 0
-            end = self.__concurrency
+            para_start = 0
+            para_end = self.__concurrency
             while True:
-                result.extend(await asyncio.gather(*[self.__getjson(url, param) for param in params[start:end]],
-                                                   return_exceptions=True))
-                if end > len(params):
+                result.extend(
+                    await asyncio.gather(*[self.__getjson(url, param) for param in params[para_start:para_end]],
+                                         return_exceptions=True))
+                if para_end > len(params):
                     return result
                 else:
-                    start = end
-                    end += self.__concurrency
+                    para_start = para_end
+                    para_end += self.__concurrency
 
 
-class APIUtility():
+class APIUtility:
 
     def __init__(self):
         self.__logger = logging.getLogger('GOGDB.UTILITY')
@@ -250,42 +252,49 @@ class APIUtility():
 
         if self.product_notfoundchk(productid, productdata):
             err_msg = {
-                'id':productid,
-                'error':True,
-                'responseStatus':404,
-                'errorMessage':'Not Found',
-                'errorType':'ClientResponseError'
+                'id': productid,
+                'error': True,
+                'responseStatus': 404,
+                'errorMessage': 'Not Found',
+                'errorType': 'ClientResponseError'
             }
             return err_msg
 
         return productdata
 
     def price_parse(self, price_string):
-        '''
+        """
         format price string into dict
         :param price_string: price string format like "999 USD"
         :return: Decimal object
-        '''
+        """
+        self.__logger.debug(f'parse price from {price_string}')
         price_tmp = price_string.strip().split(' ')
         price_tmp[0] = price_tmp[0][:len(price_tmp[0])-2] + '.' + price_tmp[0][len(price_tmp[0])-2:]
         return Decimal(price_tmp[0]).quantize(Decimal('.00'))
 
     def get_id_from_url(self, url):
-        t = re.findall('\d+', url)
+        t = re.findall(r'\d+', url)
         if t:
-            return max(t, key=len)
+            pid = max(t, key=len)
+            self.__logger.debug(f'Get product id {pid} from {url}')
+            return pid
         else:
+            self.__logger.warning(f'Can not get product id from {url}')
             return None
 
     def get_country_code_from_url(self, url):
         t = re.findall('countryCode=.*', url)
         if t:
-            return max(t, key=len).strip().split('=')[1].lower()
+            country_code = max(t, key=len).strip().split('=')[1].lower()
+            self.__logger.debug(f'Get country code {country_code} from {url}')
+            return country_code
         else:
+            self.__logger.warning(f'Can not get country code from {url}')
             return None
 
 
-class API():
+class API:
 
     def __init__(self, retries=5, concurrency=10):
         self.__hosts = dict()
@@ -388,7 +397,7 @@ class API():
 
     async def get_product_id_in_page(self, page, limit=50):
         self.__logger.info(f"Call {self.get_product_id_in_page.__name__}")
-        params = {'page':page, 'limit':limit, 'locale':'en-US'}
+        params = {'page': page, 'limit': limit, 'locale': 'en-US'}
         async with APIRequester(self.__retries, self.__concurrency) as request:
             page_data = await request.getjson(self.hosts['detail'], params=params)
             if self.__utl.errorchk(page_data):
@@ -419,7 +428,7 @@ class API():
             except Exception as e:
                 self.__logger.error(f"{self.get_all_product_id.__name__} {type(e).__name__} {e}")
                 return [-1]
-            params = [{'page':page, 'locale':'en-US'} for page in range(1, pages+1)]
+            params = [{'page': page, 'locale': 'en-US'} for page in range(1, pages+1)]
             results = await request.getjson(self.__hosts['detail'], params)
 
             sum_ids = list()
@@ -431,25 +440,25 @@ class API():
                     sum_ids.append(-1)          # Error Flag
                     continue
 
-                ids = list()
+                prod_ids = list()
                 for item in items:
                     try:
-                        ids.append(item['_embedded']['product']['id'])
+                        prod_ids.append(item['_embedded']['product']['id'])
                     except Exception as e:
                         self.__logger.error(f"{self.get_all_product_id.__name__} {type(e).__name__} {e}")
-                        ids.append(-1)          # Error Flag
+                        prod_ids.append(-1)          # Error Flag
                         continue
-                sum_ids.extend(ids)
+                sum_ids.extend(prod_ids)
 
             return sum_ids
 
     async def get_product_data(self, product_id):
-        params = {'locale':'en-US'}
+        params = {'locale': 'en-US'}
 
         if isinstance(product_id, int) or isinstance(product_id, str):
-            ids = [str(product_id)]
+            prod_ids = [str(product_id)]
         elif isinstance(product_id, list) or isinstance(product_id, tuple):
-            ids = list(map(str, product_id))
+            prod_ids = list(map(str, product_id))
         else:
             return {
                 'error': True,
@@ -459,14 +468,14 @@ class API():
             }
 
         self.__logger.info(
-            f"Call {self.get_product_data.__name__} ids=[{', '.join(str(proid) for proid in ids)}]")
+            f"Call {self.get_product_data.__name__} ids=[{', '.join(str(prod_id) for prod_id in prod_ids)}]")
 
-        urls = [f"{self.__hosts['detail']}/{proid}" for proid in ids]
+        urls = [f"{self.__hosts['detail']}/{prod_id}" for prod_id in prod_ids]
 
         async with APIRequester(self.__retries, self.__concurrency) as request:
             product_datas = await request.getjson(urls, params)
-            for i in range(0, len(ids)):
-                product_datas[i] = self.__utl.product_errorchk(ids[i], product_datas[i])
+            for i in range(0, len(prod_ids)):
+                product_datas[i] = self.__utl.product_errorchk(prod_ids[i], product_datas[i])
 
             return product_datas
 
@@ -475,7 +484,7 @@ class API():
             return await request.getjson(self.__hosts['region'])
 
     async def get_product_prices(self, product_id, countries):
-        '''
+        """
         get product's price in different countries
         :param product_id: product id, can be int, string or list
         :param countries: countries, can be string or list
@@ -496,43 +505,43 @@ class API():
                             }
                         }
                     }
-        '''
+        """
         id_list = list(map(str, product_id)) if isinstance(product_id, list) else [str(product_id)]
-        ids = ','.join(id_list)
+        prod_ids = ','.join(id_list)
         if not isinstance(countries, list):
-            params = [{'ids':ids, 'countryCode':str(countries)}]
+            params = [{'ids': prod_ids, 'countryCode': str(countries)}]
         else:
-            params = [{'ids':ids, 'countryCode':str(countryCode)} for countryCode in countries]
+            params = [{'ids': prod_ids, 'countryCode': str(countryCode)} for countryCode in countries]
 
         async with APIRequester(self.__retries, self.__concurrency) as request:
             rep = await request.getjson(self.__hosts['multiprice'], params)
-            result_list = {prodid:{'basePrice':dict(), 'finalPrice':dict()} for prodid in id_list}
+            result_list = {prodid: {'basePrice': dict(), 'finalPrice': dict()} for prodid in id_list}
             for data in rep:
                 if not self.__utl.errorchk(data):
                     for item in data['_embedded']['items']:
                         prod_id = self.__utl.get_id_from_url(item['_links']['self']['href'])
-                        countryCode = self.__utl.get_country_code_from_url(item['_links']['self']['href'])
-                        result_list[prod_id]['basePrice'][countryCode] = dict()
-                        result_list[prod_id]['finalPrice'][countryCode] = dict()
+                        country_code = self.__utl.get_country_code_from_url(item['_links']['self']['href'])
+                        result_list[prod_id]['basePrice'][country_code] = dict()
+                        result_list[prod_id]['finalPrice'][country_code] = dict()
 
-                        result_list[prod_id]['basePrice'][countryCode]['defaultCurrency'] = \
+                        result_list[prod_id]['basePrice'][country_code]['defaultCurrency'] = \
                             item['_embedded']['prices'][0]['currency']['code']
-                        result_list[prod_id]['finalPrice'][countryCode]['defaultCurrency'] = \
+                        result_list[prod_id]['finalPrice'][country_code]['defaultCurrency'] = \
                             item['_embedded']['prices'][0]['currency']['code']
 
                         for price in item['_embedded']['prices']:
                             base_price = self.__utl.price_parse(price['basePrice'])
                             final_price = self.__utl.price_parse(price['finalPrice'])
-                            result_list[prod_id]['basePrice'][countryCode][price['currency']['code']] = base_price
-                            result_list[prod_id]['finalPrice'][countryCode][price['currency']['code']] = final_price
+                            result_list[prod_id]['basePrice'][country_code][price['currency']['code']] = base_price
+                            result_list[prod_id]['finalPrice'][country_code][price['currency']['code']] = final_price
 
             return result_list
 
     async def get_rating(self, product_id):
         if isinstance(product_id, int) or isinstance(product_id, str):
-            ids = [str(product_id)]
+            prod_ids = [str(product_id)]
         elif isinstance(product_id, list) or isinstance(product_id, tuple):
-            ids = list(map(str, product_id))
+            prod_ids = list(map(str, product_id))
         else:
             return {
                 'error': True,
@@ -541,26 +550,26 @@ class API():
                 'id': product_id
             }
 
-        result = {prodid:{} for prodid in ids}
+        result = {prod_id: {} for prod_id in prod_ids}
         self.__logger.info(
-            f"Call {self.get_rating.__name__} ids=[{', '.join(str(proid) for proid in ids)}]")
-        urls = [f"{self.__hosts['rating'].replace('{productid}', proid)}" for proid in ids]
+            f"Call {self.get_rating.__name__} ids=[{', '.join(str(prod_id) for prod_id in prod_ids)}]")
+        urls = [f"{self.__hosts['rating'].replace('{productid}', prod_id)}" for prod_id in prod_ids]
 
         async with APIRequester(self.__retries, self.__concurrency) as request:
             rating_datas = await request.getjson(urls)
-            for i in range(0, len(ids)):
+            for i in range(0, len(prod_ids)):
                 if not self.__utl.errorchk(rating_datas[i]):
-                    result[ids[i]] = rating_datas[i]
-                    result[ids[i]]['value'] = Decimal(result[ids[i]]['value']).quantize(Decimal('.00'))
+                    result[prod_ids[i]] = rating_datas[i]
+                    result[prod_ids[i]]['value'] = Decimal(result[prod_ids[i]]['value']).quantize(Decimal('.00'))
 
             return result
 
     async def get_extend_detail(self, product_id):
         id_list = list(map(str, product_id)) if isinstance(product_id, list) else [str(product_id)]
-        ids = ','.join(id_list)
-        params = {'ids':ids, 'expand':'downloads'}
+        prod_ids = ','.join(id_list)
+        params = {'ids': prod_ids, 'expand': 'downloads'}
 
-        self.__logger.info(f"Call {self.get_extend_detail.__name__} ids=[{ids}]")
+        self.__logger.info(f"Call {self.get_extend_detail.__name__} ids=[{prod_ids}]")
 
         async with APIRequester(self.__retries, self.__concurrency) as request:
             rep = await request.getjson(self.__hosts['extend_detail'], params)
@@ -662,8 +671,8 @@ if __name__ == "__main__":
         logger.error(f'Error occurred when get product {proid}')
     else:
         logger.info(f'Get product {proid} success')
-    asyncio.run(api.get_product_data([1,2,3,4,5,6,7,8,9,0]))
+    asyncio.run(api.get_product_data([1, 2, 3, 4, 5, 6, 7, 8, 9, 0]))
     asyncio.run(api.get_countries())
     asyncio.run(api.get_product_prices(['1', '2', '3', '4', '5'], ['CN', 'RU', 'US']))
-    asyncio.run(api.get_rating([1,2,3,4,5]))
-    asyncio.run(api.get_extend_detail([1,2,3,4,5]))
+    asyncio.run(api.get_rating([1, 2, 3, 4, 5]))
+    asyncio.run(api.get_extend_detail([1, 2, 3, 4, 5]))
