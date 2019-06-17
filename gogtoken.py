@@ -5,9 +5,11 @@ from .gogapi import API
 import asyncio
 import simplejson as json
 
+
 def datetime_encoder(obj):
     if isinstance(obj, datetime):
         return obj.strftime('%Y-%m-%d %H:%M:%S')
+
 
 def datetime_decoder(dct):
     if 'last_update' in dct:
@@ -84,7 +86,7 @@ class GOGToken:
             self.save_to_file()
 
     def load_from_file(self, filename=None):
-        if filename == None:
+        if filename is None:
             filename = self.__token_file
         else:
             self.__token_file = filename
@@ -93,7 +95,7 @@ class GOGToken:
             self.load(**data)
 
     def save_to_file(self, filename=None):
-        if filename == None:
+        if filename is None:
             filename = self.__token_file
         else:
             self.__token_file = filename
