@@ -14,14 +14,17 @@ from decimal import Decimal
 
 class APIRequester:
 
-    def __init__(self, retries=5, concurrency=10):
+    def __init__(self, retries=5, concurrency=10, headers=None):
         self.__retries = retries
         self.__concurrency = concurrency
+        self.__ua = UserAgent().random
+        self.__headers = {'User-Agent': self.__ua}
+        if headers is not None:
+            self.__headers.update(headers)
         self.__logger = logging.getLogger('GOGDB.REQUESTER')
 
     async def __aenter__(self):
-        self.__ua = UserAgent().random
-        self.__session = aiohttp.ClientSession(headers={'User-Agent': self.__ua})
+        self.__session = aiohttp.ClientSession(headers=self.__headers)
         return self
 
     async def __aexit__(self, *err):
@@ -307,6 +310,7 @@ class API:
         self.__hosts['login'] = 'https://login.gog.com/login_check'
         self.__hosts['token'] = 'https://auth.gog.com/token'
         self.__hosts['extend_detail'] = 'https://api.gog.com/products'
+        self.__hosts['achievement'] = 'https://gameplay.gog.com/clients/{clientid}/users/{userid}/achievements'
 
         self.__client_id = '46899977096215655'
         self.__client_secret = '9d85c43b1482497dbbce61f6e4aa173a433796eeae2ca8c5f6129f2dc4de46d9'
@@ -478,6 +482,12 @@ class API:
                 product_datas[i] = self.__utl.product_errorchk(prod_ids[i], product_datas[i])
 
             return product_datas
+
+    async def get_product_achievement(self, client_id, user_id, token_type, access_token):
+        url = self.__hosts['achievement'].replace('{clientid}', client_id).replace('{userid}', user_id)
+        headers = {'Authorization': f'{token_type.title()} {access_token}'}
+        async with APIRequester(self.__retries, self.__concurrency, headers) as request:
+            return await request.getjson(url)
 
     async def get_countries(self):
         async with APIRequester(self.__retries, self.__concurrency) as request:
