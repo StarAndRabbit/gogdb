@@ -27,7 +27,7 @@ class GOGBase:
                 elif related_objects == True:
                     pass
                 else:
-                    value = value.to_dict(only, exclude, with_collections, related_objects)
+                    value = value.to_dict(with_collections=with_collections, related_objects=related_objects)
             else:
                 pass
             properties_dict[prop] = value
