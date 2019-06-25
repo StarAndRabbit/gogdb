@@ -8,6 +8,21 @@ class NetworkError(Exception):
     pass
 
 
+class Series(GOGBase):
+
+    @property
+    def id(self):
+        return self.__id
+
+    @property
+    def name(self):
+        return self.__name
+
+    def __init__(self, series_data):
+        self.__id = series_data['id']
+        self.__name = series_data['name']
+
+
 class Links(GOGBase):
 
     @property
@@ -150,6 +165,10 @@ class GOGProduct(GOGBase):
     def links(self):
         return self.__links
 
+    @property
+    def series(self):
+        return self.__series
+
     def __init__(self, *args):
         if len(args) == 1 and (isinstance(args[0], int) or isinstance(args[0], str)):
             api = API()
@@ -198,12 +217,14 @@ class GOGProduct(GOGBase):
                 self.__image = Images(product['_links']['image'])
 
                 self.__productType = embed.get('productType', 'GAME')
+                self.__series = None if 'series' not in embed else Series(embed['series'])
 
                 self.__isUsingDosBox = data.get('isUsingDosBox', False)
                 self.__inDevelopment = False if isinstance(data.get('inDevelopment', False), bool) \
                     else data['inDevelopment'].get('active', False)
                 self.__additionalRequirements = data.get('additionalRequirements', '')
                 self.__links = Links(data['_links'])
+
 
     def __parse_ext_data(self, data):
         if 'error' in data:
