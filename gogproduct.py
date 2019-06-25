@@ -1,4 +1,5 @@
 from .gogapi import API
+from .gogbase import GOGBase
 import asyncio
 import dateutil.parser
 
@@ -7,7 +8,7 @@ class NetworkError(Exception):
     pass
 
 
-class Links:
+class Links(GOGBase):
 
     @property
     def store(self):
@@ -57,7 +58,7 @@ class Links:
         self.__galaxyBackgroundImage = links_data.get('galaxyBackgroundImage', {}).get('href', '')
 
 
-class Images:
+class Images(GOGBase):
 
     @property
     def href(self):
@@ -75,7 +76,7 @@ class Images:
         return list(map(lambda x: self.__href.replace('{formatter}', x), self.__formatters))
 
 
-class GOGProduct:
+class GOGProduct(GOGBase):
 
     @property
     def id(self):
