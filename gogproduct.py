@@ -405,7 +405,8 @@ class GOGProduct(GOGBase):
                 raise NetworkError()
 
             prod_data = prod_data[0]
-            prod_ext_data = prod_ext_data[0]
+            if len(prod_ext_data) != 0:             # when error occured on request, product extend data will be []
+                prod_ext_data = prod_ext_data[0]
             prod_rating_data = prod_rating_data[str(prod_id)]
             self.__parse_data(prod_data)
             self.__parse_ext_data(prod_ext_data)
@@ -455,7 +456,7 @@ class GOGProduct(GOGBase):
                 self.__tags = list(map(lambda x: Tag(x), embed.get('tags', [])))
                 self.__localization = list(map(lambda x: Localization(x['_embedded']), embed.get('localizations', [])))
                 self.__screenshots = list(map(lambda x: Screenshot(x), embed.get('screenshots', [])))
-                self.__videos = list(map(lambda x: Video(x), embed.get('videos',[])))
+                self.__videos = list(map(lambda x: Video(x), embed.get('videos', [])))
                 self.__editions = list(map(lambda x: str(x['id']), embed.get('editions', [])))
                 self.__bonuses = list(map(lambda x: Bonus(x), embed.get('bonuses', [])))
 

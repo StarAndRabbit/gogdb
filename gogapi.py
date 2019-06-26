@@ -236,6 +236,12 @@ class APIUtility:
             self.__logger.warning('Error occurred on request, may lost data')
         return error
 
+    def product_ext_errorchk(self, productid, extdata):
+        id_list = list(map(str, productid)) if isinstance(productid, list) else [str(productid)]
+        if len(id_list) != len(extdata):
+            self.__logger.warning(
+                f'Error occurred on request product extend detail, may lost data, ids=[{",".join(id_list)}]')
+
     def product_notfoundchk(self, productid, productdata):
         if "message" in productdata:
             msg = productdata['message']
@@ -583,6 +589,9 @@ class API:
 
         async with APIRequester(self.__retries, self.__concurrency) as request:
             rep = await request.getjson(self.__hosts['extend_detail'], params)
+
+            self.__utl.product_ext_errorchk(product_id, rep)
+
             result = list()
             for detail in rep:
                 if not self.__utl.errorchk(detail):
