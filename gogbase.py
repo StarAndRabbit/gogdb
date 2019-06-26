@@ -28,8 +28,22 @@ class GOGBase:
                     pass
                 else:
                     value = value.to_dict(with_collections=with_collections, related_objects=related_objects)
+            elif isinstance(value, list):
+                for i in range(0, len(value)):
+                    if isinstance(value[i], GOGBase):
+                        value[i] = value[i].to_dict(with_collections=with_collections, related_objects=related_objects)
             else:
                 pass
             properties_dict[prop] = value
 
         return properties_dict
+
+
+class GOGSimpleClass(GOGBase):
+
+    @property
+    def name(self):
+        return self.__name
+
+    def __init__(self, data):
+        self.__name = data['name'].strip()
