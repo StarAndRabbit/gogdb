@@ -21,22 +21,37 @@ class GOGBase:
                         continue
 
             value = members[prop]
-            if isinstance(value, GOGBase):
-                if with_collections == False:
-                    continue
-                elif related_objects == True:
-                    pass
-                else:
-                    value = value.to_dict(with_collections=with_collections, related_objects=related_objects)
-            elif isinstance(value, list):
-                for i in range(0, len(value)):
-                    if isinstance(value[i], GOGBase):
-                        value[i] = value[i].to_dict(with_collections=with_collections, related_objects=related_objects)
-            else:
-                pass
+            value = self.__deal_data(value, with_collections, related_objects)
+            if value is None:
+                continue
             properties_dict[prop] = value
 
         return properties_dict
+
+    def __deal_data(self, data, with_collections, related_objects):
+        value = data
+        if isinstance(value, GOGBase):
+            if with_collections == False:
+                return None
+            elif related_objects == True:
+                return value
+            else:
+                return value.to_dict(with_collections=with_collections, related_objects=related_objects)
+        elif isinstance(value, list):
+            for i in range(0, len(value)):
+                tmp = self.__deal_data(value[i], with_collections, related_objects)
+                if tmp is not None:
+                    value[i] = tmp
+            return value
+        elif isinstance(value, dict):
+            for key in value:
+                tmp = self.__deal_data(value[key], with_collections, related_objects)
+                if tmp is not None:
+                    value[key] = tmp
+            return value
+        else:
+            return value
+
 
 
 class GOGSimpleClass(GOGBase):
@@ -47,3 +62,43 @@ class GOGSimpleClass(GOGBase):
 
     def __init__(self, data):
         self.__name = data['name'].strip()
+
+
+class GOGFile(GOGBase):
+
+    @property
+    def id(self):
+        return self.__id
+
+    @property
+    def size(self):
+        return self.__filesize
+
+    @property
+    def downlink(self):
+        return self.__downlink
+
+    def __init__(self, product_slug, file_data):
+        self.__id = file_data['id'] if isinstance(file_data['id'], int) else file_data['id'].strip()
+        self.__filesize = file_data['size']
+        self.__downlink = f'https://www.gog.com/downlink/{product_slug}/{self.__id}'
+
+
+class GOGDownloadable(GOGBase):
+
+    @property
+    def id(self):
+        return self.__id
+
+    @property
+    def totalSize(self):
+        return self.__totalSize
+
+    @property
+    def files(self):
+        return self.__files
+
+    def __init__(self, product_slug, down_data):
+        self.__id = down_data['id'] if isinstance(down_data['id'], int) else down_data['id'].strip()
+        self.__totalSize = down_data['total_size']
+        self.__files = list(map(lambda x: GOGFile(product_slug, x), down_data['files']))

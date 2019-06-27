@@ -1,5 +1,5 @@
 from .gogapi import API, APIUtility
-from .gogbase import GOGBase, GOGSimpleClass
+from .gogbase import GOGBase, GOGSimpleClass, GOGDownloadable
 import asyncio
 import dateutil.parser
 
@@ -248,6 +248,68 @@ class Bonus(GOGSimpleClass):
         super().__init__(bonus_data)
 
 
+class Installer(GOGDownloadable):
+
+    @property
+    def name(self):
+        return self.__name
+
+    @property
+    def language(self):
+        """
+        index of language table
+        :return: language table index code
+        """
+        return self.__language
+
+    @property
+    def os(self):
+        """
+        index of OS table
+        :return: OS table index
+        """
+        return self.__os
+
+    @property
+    def version(self):
+        return self.__version
+
+    def __init__(self, product_slug, installer_data):
+        self.__name = installer_data['name'].strip()
+        self.__language = installer_data['language']
+        self.__os = installer_data['os']
+        self.__version = '' if installer_data['version'] is None else installer_data['version'].strip()
+        super().__init__(product_slug, installer_data)
+
+
+class BonusContent(GOGDownloadable):
+
+    @property
+    def bonus(self):
+        """
+        index of Bounses Table
+        :return: Bonuses table index
+        """
+        return self.__bonus
+
+    @property
+    def count(self):
+        return self.__count
+
+    def __init__(self, product_slug, bonus_data):
+        self.__bonus = bonus_data['name'].strip()
+        self.__count = bonus_data['count']
+        super().__init__(product_slug, bonus_data)
+
+
+class LanguagePack(Installer):
+    pass
+
+
+class Patche(Installer):
+    pass
+
+
 class GOGProduct(GOGBase):
 
     @property
@@ -390,6 +452,15 @@ class GOGProduct(GOGBase):
     def bonuses(self):
         return self.__bonuses
 
+    @property
+    def downloads(self):
+        return {
+            "installers": self.__installers,
+            "bonusContent": self.__bonusContent,
+            "patches": self.__patches,
+            "languagePacks": self.__languagePacks
+        }
+
     def __init__(self, *args):
         if len(args) == 1 and (isinstance(args[0], int) or isinstance(args[0], str)):
             api = API()
@@ -416,7 +487,7 @@ class GOGProduct(GOGBase):
             prod_ext_data = args[1]
             prod_rating_data = args[2]
             self.__parse_data(prod_data)
-            self.__parse_data(prod_ext_data)
+            self.__parse_ext_data(prod_ext_data)
             self.__parse_rating_data(prod_rating_data)
         else:
             raise TypeError()
@@ -486,6 +557,12 @@ class GOGProduct(GOGBase):
                 if data['content_system_compatibility'][os]:
                     content_system_compatibility.append({'name': os})
             self.__content_system_compatibility = list(map(lambda x: OS(x), content_system_compatibility))
+
+            downloads = data.get('downloads', {})
+            self.__installers = list(map(lambda x: Installer(self.slug, x), downloads.get('installers', [])))
+            self.__bonusContent = list(map(lambda x: BonusContent(self.slug, x), downloads.get('bonus_content', [])))
+            self.__patches = list(map(lambda x: Patche(self.slug, x), downloads.get('patches', [])))
+            self.__languagePacks = list(map(lambda x: LanguagePack(self.slug, x), downloads.get('language_packs', [])))
 
     def __parse_rating_data(self, data):
         if 'error' in data:
