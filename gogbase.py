@@ -31,9 +31,9 @@ class GOGBase:
     def __deal_data(self, data, with_collections, related_objects):
         value = data
         if isinstance(value, GOGBase):
-            if with_collections == False:
+            if not with_collections:
                 return None
-            elif related_objects == True:
+            elif related_objects:
                 return value
             else:
                 return value.to_dict(with_collections=with_collections, related_objects=related_objects)
@@ -51,7 +51,6 @@ class GOGBase:
             return value
         else:
             return value
-
 
 
 class GOGSimpleClass(GOGBase):
