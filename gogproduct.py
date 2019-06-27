@@ -83,25 +83,6 @@ class Localization(GOGBase):
         self.__type = local_data['localizationScope']['type']
 
 
-class Screenshot(GOGBase):
-
-    @property
-    def href(self):
-        return self.__href
-
-    @property
-    def formatters(self):
-        return self.__formatters
-
-    def __init__(self, screenshot_data):
-        sc_data = screenshot_data['_links']['self']
-        self.__href = sc_data.get('href', '')
-        self.__formatters = sc_data.get('formatters', [])
-
-    def template(self):
-        return list(map(lambda x: self.__href.replace('{formatter}', x), self.__formatters))
-
-
 class Series(GOGSimpleClass):
 
     @property
@@ -179,6 +160,13 @@ class Images(GOGBase):
 
     def template(self):
         return list(map(lambda x: self.__href.replace('{formatter}', x), self.__formatters))
+
+
+class Screenshot(Images):
+
+    def __init__(self, screenshot_data):
+        sc_data = screenshot_data['_links']['self']
+        super().__init__(sc_data)
 
 
 class VideoProvider(GOGBase):
