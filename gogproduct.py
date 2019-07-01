@@ -557,3 +557,19 @@ class GOGProduct(GOGBase):
             raise ValueError()
         else:
             self.__averageRating = Rating(data)
+
+
+def create_multi_product(ids):
+    if not isinstance(ids, list) and not isinstance(ids, tuple):
+        raise TypeError()
+    else:
+        api = API()
+        tasks = asyncio.gather(api.get_product_data(ids),
+                               api.get_extend_detail(ids),
+                               api.get_rating(ids))
+        loop = asyncio.get_event_loop()
+        prod_data, prod_ext_data, prod_rating_data = loop.run_until_complete(tasks)
+        if len(prod_ext_data) == 0:
+            raise NetworkError
+        return list(
+            map(lambda x: GOGProduct(prod_data[x], prod_ext_data[x], prod_rating_data[ids[x]]), range(0, len(ids))))
