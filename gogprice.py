@@ -36,6 +36,7 @@ class SignalPrice(GOGBase):
         self.__finalPrice = finalPrice
         self.__priority = priority
 
+
 class GOGPrice(GOGBase):
 
     def __init__(self, *args):
@@ -69,6 +70,7 @@ class GOGPrice(GOGBase):
     @property
     def prices(self):
         return self.__prices
+
 
 def create_multi_product_prices(ids, countries):
     if not isinstance(ids, list) and not isinstance(ids, tuple):
