@@ -2,6 +2,7 @@ from .gogapi import API, APIUtility
 from .gogbase import GOGBase, GOGSimpleClass, GOGDownloadable
 import asyncio
 import dateutil.parser
+from .gogexceptions import GOGBaseException
 
 
 class NetworkError(Exception):
@@ -458,18 +459,23 @@ class GOGProduct(GOGBase):
                                    api.get_extend_detail(prod_id),
                                    api.get_rating(prod_id))
             loop = asyncio.get_event_loop()
-            try:
-                prod_data, prod_ext_data, prod_rating_data = loop.run_until_complete(tasks)
-            except Exception:
-                raise NetworkError()
+            prod_data, prod_ext_data, prod_rating_data = loop.run_until_complete(tasks)
 
             prod_data = prod_data[0]
-            if len(prod_ext_data) != 0:             # when error occured on request, product extend data will be []
-                prod_ext_data = prod_ext_data[0]
-            prod_rating_data = prod_rating_data[str(prod_id)]
-            self.__parse_data(prod_data)
-            self.__parse_ext_data(prod_ext_data)
-            self.__parse_rating_data(prod_rating_data)
+            prod_ext_data = prod_ext_data[0]
+            prod_rating_data = prod_rating_data[0]
+
+            if isinstance(prod_data, GOGBaseException):
+                raise prod_data
+            elif isinstance(prod_ext_data, GOGBaseException):
+                raise prod_ext_data
+            elif isinstance(prod_rating_data, GOGBaseException):
+                raise prod_rating_data
+            else:
+                self.__parse_data(prod_data)
+                self.__parse_ext_data(prod_ext_data)
+                self.__parse_rating_data(prod_rating_data)
+
         elif len(args) == 3 and isinstance(args[0], dict) and isinstance(args[1], dict) and isinstance(args[2], dict):
             prod_data = args[0]
             prod_ext_data = args[1]
@@ -481,82 +487,92 @@ class GOGProduct(GOGBase):
             raise TypeError()
 
     def __parse_data(self, data):
-        if 'error' in data:
+        if '_embedded' not in data:
             raise ValueError()
         else:
-            if '_embedded' not in data:
-                raise ValueError()
-            else:
-                embed = data['_embedded']
-                product = embed['product']
+            embed = data['_embedded']
+            product = embed['product']
 
-                # product segment
-                self.__id = product['id']
-                self.__title = product['title'].strip()
-                self.__isAvailableForSale = product.get('isAvailableForSale', False)
-                self.__isVisibleInCatalog = product.get('isVisibleInCatalog', False)
-                self.__isPreorder = product.get('isPreorder', False)
-                self.__isVisibleInAccount = product.get('isVisibleInAccount', False)
-                self.__isInstallable = product.get('isInstallable', False)
-                self.__globalReleaseDate = product.get('globalReleaseDate', None)
-                self.__hasProductCard = product.get('hasProductCard', False)
-                self.__gogReleaseDate = product.get('gogReleaseDate', None)
-                self.__isSecret = product.get('isSecret', False)
-                self.__image = Images(product['_links']['image'])
+            # product segment
+            self.__id = product['id']
+            self.__title = product['title'].strip()
+            self.__isAvailableForSale = product.get('isAvailableForSale', False)
+            self.__isVisibleInCatalog = product.get('isVisibleInCatalog', False)
+            self.__isPreorder = product.get('isPreorder', False)
+            self.__isVisibleInAccount = product.get('isVisibleInAccount', False)
+            self.__isInstallable = product.get('isInstallable', False)
+            self.__globalReleaseDate = product.get('globalReleaseDate', None)
+            self.__hasProductCard = product.get('hasProductCard', False)
+            self.__gogReleaseDate = product.get('gogReleaseDate', None)
+            self.__isSecret = product.get('isSecret', False)
+            self.__image = Images(product['_links']['image'])
 
-                # embedded segment
-                self.__productType = embed.get('productType', 'GAME')
-                self.__series = None if 'series' not in embed or embed['series'] is None else Series(embed['series'])
-                self.__publishers = [Publisher(embed.get('publisher'))]
-                self.__developers = list(map(lambda x: Developer(x), embed.get('developers', [])))
-                self.__supportedOS = list(
-                    map(lambda x: OS(x['operatingSystem']), embed.get('supportedOperatingSystems', [])))
-                self.__features = list(map(lambda x: Feature(x), embed.get('features', [])))
-                self.__tags = list(map(lambda x: Tag(x), embed.get('tags', [])))
-                self.__localization = list(map(lambda x: Localization(x['_embedded']), embed.get('localizations', [])))
-                self.__screenshots = list(map(lambda x: Screenshot(x), embed.get('screenshots', [])))
-                self.__videos = list(map(lambda x: Video(x), embed.get('videos', [])))
-                self.__editions = list(map(lambda x: str(x['id']), embed.get('editions', [])))
-                self.__bonuses = list(map(lambda x: Bonus(x), embed.get('bonuses', [])))
+            # embedded segment
+            self.__productType = embed.get('productType', 'GAME')
+            self.__series = None if 'series' not in embed or embed['series'] is None else Series(embed['series'])
+            self.__publishers = [Publisher(embed.get('publisher'))]
+            self.__developers = list(map(lambda x: Developer(x), embed.get('developers', [])))
+            self.__supportedOS = list(
+                map(lambda x: OS(x['operatingSystem']), embed.get('supportedOperatingSystems', [])))
+            self.__features = list(map(lambda x: Feature(x), embed.get('features', [])))
+            self.__tags = list(map(lambda x: Tag(x), embed.get('tags', [])))
+            self.__localization = list(map(lambda x: Localization(x['_embedded']), embed.get('localizations', [])))
+            self.__screenshots = list(map(lambda x: Screenshot(x), embed.get('screenshots', [])))
+            self.__videos = list(map(lambda x: Video(x), embed.get('videos', [])))
+            self.__editions = list(map(lambda x: str(x['id']), embed.get('editions', [])))
+            self.__bonuses = list(map(lambda x: Bonus(x), embed.get('bonuses', [])))
 
-                # data segment
-                self.__isUsingDosBox = data.get('isUsingDosBox', False)
-                self.__inDevelopment = False if isinstance(data.get('inDevelopment', False), bool) \
-                    else data['inDevelopment'].get('active', False)
-                self.__additionalRequirements = data.get('additionalRequirements', '').strip()
-                self.__links = Links(data['_links'])
-                self.__requiresGames = list(
-                    map(lambda x: APIUtility().get_id_from_url(x['href']), data['_links'].get('requiresGames', [])))
-                self.__requiredByGames = list(
-                    map(lambda x: APIUtility().get_id_from_url(x['href']), data['_links'].get('isRequiredByGames', [])))
-                self.__includesGames = list(
-                    map(lambda x: APIUtility().get_id_from_url(x['href']), data['_links'].get('includesGames', [])))
-                self.__includedInGames = list(
-                    map(lambda x: APIUtility().get_id_from_url(x['href']), data['_links'].get('isIncludedInGames', [])))
+            # data segment
+            self.__isUsingDosBox = data.get('isUsingDosBox', False)
+            self.__inDevelopment = False if isinstance(data.get('inDevelopment', False), bool) \
+                else data['inDevelopment'].get('active', False)
+            self.__additionalRequirements = data.get('additionalRequirements', '').strip()
+            self.__links = Links(data['_links'])
+            self.__requiresGames = list(
+                map(lambda x: APIUtility().get_id_from_url(x['href']), data['_links'].get('requiresGames', [])))
+            self.__requiredByGames = list(
+                map(lambda x: APIUtility().get_id_from_url(x['href']), data['_links'].get('isRequiredByGames', [])))
+            self.__includesGames = list(
+                map(lambda x: APIUtility().get_id_from_url(x['href']), data['_links'].get('includesGames', [])))
+            self.__includedInGames = list(
+                map(lambda x: APIUtility().get_id_from_url(x['href']), data['_links'].get('isIncludedInGames', [])))
 
     def __parse_ext_data(self, data):
-        if 'error' in data:
-            raise ValueError()
-        else:
-            self.__slug = data.get('slug', '').strip()
+        self.__slug = data.get('slug', '').strip()
 
-            content_system_compatibility = list()
-            for os in data['content_system_compatibility'].keys():
-                if data['content_system_compatibility'][os]:
-                    content_system_compatibility.append({'name': os})
-            self.__content_system_compatibility = list(map(lambda x: OS(x), content_system_compatibility))
+        content_system_compatibility = list()
+        for os in data['content_system_compatibility'].keys():
+            if data['content_system_compatibility'][os]:
+                content_system_compatibility.append({'name': os})
+        self.__content_system_compatibility = list(map(lambda x: OS(x), content_system_compatibility))
 
-            downloads = data.get('downloads', {})
-            self.__installers = list(map(lambda x: Installer(self.slug, x), downloads.get('installers', [])))
-            self.__bonusContent = list(map(lambda x: BonusContent(self.slug, x), downloads.get('bonus_content', [])))
-            self.__patches = list(map(lambda x: Patche(self.slug, x), downloads.get('patches', [])))
-            self.__languagePacks = list(map(lambda x: LanguagePack(self.slug, x), downloads.get('language_packs', [])))
+        downloads = data.get('downloads', {})
+        self.__installers = list(map(lambda x: Installer(self.slug, x), downloads.get('installers', [])))
+        self.__bonusContent = list(map(lambda x: BonusContent(self.slug, x), downloads.get('bonus_content', [])))
+        self.__patches = list(map(lambda x: Patche(self.slug, x), downloads.get('patches', [])))
+        self.__languagePacks = list(map(lambda x: LanguagePack(self.slug, x), downloads.get('language_packs', [])))
 
     def __parse_rating_data(self, data):
-        if 'error' in data:
-            raise ValueError()
-        else:
-            self.__averageRating = Rating(data)
+        self.__averageRating = Rating(data)
+
+
+def error_chk(prod_data, prod_ext_data, prod_rating_data):
+    if isinstance(prod_data, GOGBaseException) or \
+            isinstance(prod_ext_data, GOGBaseException) or \
+            isinstance(prod_rating_data, GOGBaseException):
+        return True
+    else:
+        return False
+
+
+def gen_product_obj_wrap(prod_id, prod_data, prod_ext_data, prod_rating_data):
+    if error_chk(prod_data, prod_ext_data, prod_rating_data):
+        try:
+            return GOGProduct(prod_id)
+        except Exception as e:
+            return e
+    else:
+        return GOGProduct(prod_data, prod_ext_data, prod_rating_data)
 
 
 def create_multi_product(ids):
@@ -569,7 +585,6 @@ def create_multi_product(ids):
                                api.get_rating(ids))
         loop = asyncio.get_event_loop()
         prod_data, prod_ext_data, prod_rating_data = loop.run_until_complete(tasks)
-        if len(prod_ext_data) == 0:
-            raise NetworkError
-        return list(
-            map(lambda x: GOGProduct(prod_data[x], prod_ext_data[x], prod_rating_data[ids[x]]), range(0, len(ids))))
+
+        return list(map(lambda x: gen_product_obj_wrap(ids[x], prod_data[x], prod_ext_data[x], prod_rating_data[x]),
+                        range(0, len(ids))))
