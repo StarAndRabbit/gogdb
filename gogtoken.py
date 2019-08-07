@@ -110,8 +110,10 @@ class GOGToken:
             return False
 
     def refresh(self):
-        data = asyncio.run(self.__api.refresh_token(self.__refresh_token))
-        if 'error' not in data:
+        try:
+            data = asyncio.run(self.__api.refresh_token(self.__refresh_token))
             self.load(**data)
             if self.__is_autosave:
                 self.save_to_file()
+        except Exception:
+            raise
