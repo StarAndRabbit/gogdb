@@ -23,3 +23,17 @@ class GOGUnknowError(GOGBaseException):
 
     def __init__(self, exp_instance):
         super().__init__(f"error type: {type(exp_instance)}\nerror message: {str(exp_instance)}")
+
+
+class GOGLoginError(GOGBaseException):
+    pass
+
+
+class GOGNeedVerification(GOGLoginError):
+    def __init__(self):
+        super().__init__('GOG is asking for a reCAPTCHA :( try again in a few minutes.')
+
+
+class GOGAccountError(GOGLoginError):
+    def __init__(self):
+        super().__init__('GOG Username or Password Error')

@@ -583,6 +583,13 @@ class API:
             return result
 
     async def login(self, username, passwd):
+        """
+        Login into GOG to get access token and refresh token
+        Account need disable two step verification
+        :param username: GOG username
+        :param passwd: GOG password
+        :return: dict object with access_token refresh_token expired_time and user_id
+        """
         self.__logger.debug(f"Call {APIUtility.func_name()} username={username} password={passwd}")
         async with APIRequester(self.__retries, self.__concurrency) as request:
             authrep = await request.get(self.__hosts['auth'], self.__auth['auth'])
@@ -593,9 +600,8 @@ class API:
             self.__logger.debug('Check reCAPTCHA')
             if len(etree.findall('.//div[@class="g-recaptcha form__recaptcha"]')) > 0:
                 self.__logger.error("login error, GOG is asking for a reCAPTCHA :( try again in a few minutes.")
-                return {
-                    'login_success': False
-                }
+                raise GOGNeedVerification()
+
             # find login token
             self.__logger.debug('Find login token')
             for elm in etree.findall('.//input'):
@@ -611,9 +617,7 @@ class API:
 
             if 'on_login_success' not in str(loginrep['url']):
                 self.__logger.error(f'login error, invalid username or password')
-                return {
-                    'login_success': False
-                }
+                raise GOGAccountError()
             else:
                 self.__auth['token']['code'] = loginrep['url'].query['code']
 
