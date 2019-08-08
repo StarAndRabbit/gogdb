@@ -103,6 +103,14 @@ class APIRequester:
                             'history': resp.history,
                             'url': resp.url
                         }
+                    except UnicodeDecodeError:
+                        return {
+                            'headers': resp.headers,
+                            'cookies': resp.cookies,
+                            'text': await resp.read(),
+                            'history': resp.history,
+                            'url': resp.url
+                        }
                     except Exception as e:
                         self.__logger.error(APIRequester.except_str(event_str, e))
                         return e
