@@ -281,6 +281,7 @@ class API:
         self.__hosts['token'] = 'https://auth.gog.com/token'
         self.__hosts['extend_detail'] = 'https://api.gog.com/products'
         self.__hosts['achievement'] = 'https://gameplay.gog.com/clients/{clientid}/users/{userid}/achievements'
+        self.__hosts['builds'] = 'https://content-system.gog.com/products/{productid}/os/{os}/builds?generation=2'
 
         self.__client_id = '46899977096215655'
         self.__client_secret = '9d85c43b1482497dbbce61f6e4aa173a433796eeae2ca8c5f6129f2dc4de46d9'
@@ -589,6 +590,22 @@ class API:
                 result.append(tmp_detail)
 
             return result
+
+    async def get_product_builds(self, product_id, os):
+        id_list = list(map(str, product_id)) if isinstance(product_id, list) else [str(product_id)]
+        os_list = list(map(str, os)) if isinstance(os, list) else [str(os)]
+        urls = list()
+        for sys in os_list:
+            urls += list(map(lambda x: self.__hosts['builds'].replace('{productid}', x).replace('{os}', sys), id_list))
+
+        self.__logger.info(f"Call {APIUtility.func_name()} ids=[{','.join(id_list)}] os=[{','.join(os_list)}]")
+
+        async with APIRequester(self.__retries, self.__concurrency) as request:
+            builds_datas = await request.get_json(urls)
+            for i in range(0, len(urls)):
+                builds_datas[i] = APIUtility.error_handler(builds_datas[i])
+
+            return builds_datas
 
     async def login(self, username, passwd):
         """
