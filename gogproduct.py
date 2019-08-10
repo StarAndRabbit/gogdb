@@ -5,10 +5,6 @@ import dateutil.parser
 from .gogexceptions import GOGBaseException
 
 
-class NetworkError(Exception):
-    pass
-
-
 class Rating(GOGBase):
 
     @property
