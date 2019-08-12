@@ -143,8 +143,9 @@ class APIRequester:
                     try:
                         resp.raise_for_status()
                     except Exception as e:
+                        need_retry = False if isinstance(e, ClientResponseError) and e.status == 404 else True
                         retries += 1
-                        if retries <= self.__retries:
+                        if retries <= self.__retries and need_retry:
                             continue
                         else:
                             self.__logger.error(APIRequester.except_str(event_str, e))
