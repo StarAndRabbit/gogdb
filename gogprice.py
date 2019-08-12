@@ -39,17 +39,10 @@ class SignalPrice(GOGBase):
 
 class GOGPrice(GOGBase):
 
-    def __init__(self, *args):
-        if len(args) != 2:
-            raise RuntimeError("Args number Error!!!")
-        elif isinstance(args[1], dict):
-            price_data = args[1][str(args[0])]
-        else:
-            api = API()
-            price_data = asyncio.run(api.get_product_prices(args[0], args[1]))
-            price_data = price_data[str(args[0])]
+    def __init__(self, prod_id, price_data):
+        price_data = price_data[prod_id]
 
-        self.__prod_id = args[0]
+        self.__prod_id = prod_id
         self.__prices = []
 
         bprice_data = price_data['basePrice']
@@ -63,6 +56,12 @@ class GOGPrice(GOGBase):
                     priority = 0 if bprice_data[country]['defaultCurrency'] == currency else 1
                     self.__prices.append(SignalPrice(str(self.__prod_id), country, currency, bprice, fprice, priority))
 
+    @classmethod
+    async def create(cls, prod_id, countries):
+        api = API()
+        price_data = await api.get_product_prices(prod_id, countries)
+        return GOGPrice(prod_id, price_data)
+
     @property
     def product_id(self):
         return self.__prod_id
@@ -72,10 +71,14 @@ class GOGPrice(GOGBase):
         return self.__prices
 
 
-def create_multi_product_prices(ids, countries):
+async def create_multi_prices_tasks(ids, countries):
     if not isinstance(ids, list) and not isinstance(ids, tuple):
         raise TypeError()
     else:
         api = API()
-        prod_prices_data = asyncio.run(api.get_product_prices(ids, countries))
+        prod_prices_data = await api.get_product_prices(ids, countries)
         return list(map(lambda x: GOGPrice(x, prod_prices_data), ids))
+
+
+def create_multi_product_prices(ids, countries):
+    return asyncio.run(create_multi_prices_tasks(ids, countries))

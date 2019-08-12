@@ -4,6 +4,7 @@ import asyncio
 import zlib
 import dateutil.parser
 
+
 class RepoProductV1(GOGBase):
 
     def __init__(self, repo_prod_data):

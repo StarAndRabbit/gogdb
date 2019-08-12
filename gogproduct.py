@@ -447,32 +447,7 @@ class GOGProduct(GOGBase):
         }
 
     def __init__(self, *args):
-        if len(args) == 1 and (isinstance(args[0], int) or isinstance(args[0], str)):
-            api = API()
-            prod_id = args[0]
-
-            tasks = asyncio.gather(api.get_product_data(prod_id),
-                                   api.get_extend_detail(prod_id),
-                                   api.get_rating(prod_id))
-            loop = asyncio.get_event_loop()
-            prod_data, prod_ext_data, prod_rating_data = loop.run_until_complete(tasks)
-
-            prod_data = prod_data[0]
-            prod_ext_data = prod_ext_data[0]
-            prod_rating_data = prod_rating_data[0]
-
-            if isinstance(prod_data, GOGBaseException):
-                raise prod_data
-            elif isinstance(prod_ext_data, GOGBaseException):
-                raise prod_ext_data
-            elif isinstance(prod_rating_data, GOGBaseException):
-                raise prod_rating_data
-            else:
-                self.__parse_data(prod_data)
-                self.__parse_ext_data(prod_ext_data)
-                self.__parse_rating_data(prod_rating_data)
-
-        elif len(args) == 3 and isinstance(args[0], dict) and isinstance(args[1], dict) and isinstance(args[2], dict):
+        if len(args) == 3 and isinstance(args[0], dict) and isinstance(args[1], dict) and isinstance(args[2], dict):
             prod_data = args[0]
             prod_ext_data = args[1]
             prod_rating_data = args[2]
@@ -481,6 +456,29 @@ class GOGProduct(GOGBase):
             self.__parse_rating_data(prod_rating_data)
         else:
             raise TypeError()
+
+    @classmethod
+    async def create(cls, prod_id):
+        prod_data, prod_ext_data, prod_rating_data = await GOGProduct.__get_needed_data(prod_id)
+        prod_data = prod_data[0]
+        prod_ext_data = prod_ext_data[0]
+        prod_rating_data = prod_rating_data[0]
+
+        if isinstance(prod_data, GOGBaseException):
+            raise prod_data
+        elif isinstance(prod_ext_data, GOGBaseException):
+            raise prod_ext_data
+        elif isinstance(prod_rating_data, GOGBaseException):
+            raise prod_rating_data
+        else:
+            return GOGProduct(prod_data, prod_ext_data, prod_rating_data)
+
+    @staticmethod
+    async def __get_needed_data(prod_id):
+        api = API()
+        return await asyncio.gather(api.get_product_data(prod_id),
+                                     api.get_extend_detail(prod_id),
+                                     api.get_rating(prod_id))
 
     def __parse_data(self, data):
         if '_embedded' not in data:
@@ -571,16 +569,14 @@ def gen_product_obj_wrap(prod_id, prod_data, prod_ext_data, prod_rating_data):
         return GOGProduct(prod_data, prod_ext_data, prod_rating_data)
 
 
-def create_multi_product(ids):
-    if not isinstance(ids, list) and not isinstance(ids, tuple):
-        raise TypeError()
-    else:
-        api = API()
-        tasks = asyncio.gather(api.get_product_data(ids),
-                               api.get_extend_detail(ids),
-                               api.get_rating(ids))
-        loop = asyncio.get_event_loop()
-        prod_data, prod_ext_data, prod_rating_data = loop.run_until_complete(tasks)
+async def create_product_tasks(ids):
+    api = API()
+    prod_data, prod_ext_data, prod_rating_data =  await asyncio.gather(api.get_product_data(ids),
+                                                                       api.get_extend_detail(ids),
+                                                                       api.get_rating(ids))
+    return list(map(lambda x: gen_product_obj_wrap(ids[x], prod_data[x], prod_ext_data[x], prod_rating_data[x]),
+                    range(0, len(ids))))
 
-        return list(map(lambda x: gen_product_obj_wrap(ids[x], prod_data[x], prod_ext_data[x], prod_rating_data[x]),
-                        range(0, len(ids))))
+
+def create_multi_product(ids):
+    return asyncio.run(create_product_tasks(ids))
