@@ -48,6 +48,8 @@ class GOGBase:
                 if tmp is not None:
                     value[key] = tmp
             return value
+        elif isinstance(value, str):
+            return value.strip()
         else:
             return value
 
