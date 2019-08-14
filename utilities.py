@@ -199,7 +199,7 @@ class Requester:
                 if retries <= self.__retries and \
                         (isinstance(e, ClientConnectionError) or
                          (isinstance(e, ClientResponseError) and e.status != 404)):
-                    self.__logger.debug(f'Network error, retry...{e}')
+                    self.__logger.debug(f'Network error [ {e} ] , retry...')
                     continue
                 else:
                     self.__logger.error(self.__except_str(event_str, e))
