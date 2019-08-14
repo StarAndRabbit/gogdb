@@ -1,4 +1,5 @@
 import inspect
+from abc import ABCMeta, abstractmethod
 
 
 class GOGBase:
@@ -102,3 +103,22 @@ class GOGDownloadable(GOGBase):
         self.__id = down_data['id'] if isinstance(down_data['id'], int) else down_data['id'].strip()
         self.__totalSize = down_data['total_size']
         self.__files = list(map(lambda x: GOGFile(product_slug, x), down_data['files']))
+
+
+class GOGNeedNetworkMetaClass(metaclass=ABCMeta):
+
+    @classmethod
+    @abstractmethod
+    def create(cls, *args):
+        pass
+
+    @classmethod
+    @abstractmethod
+    def create_multi(cls, *args):
+        pass
+
+    @staticmethod
+    def try_exception(*args):
+        for arg in args:
+            if isinstance(arg, Exception):
+                raise arg

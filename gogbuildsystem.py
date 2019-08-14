@@ -1,8 +1,10 @@
-from .gogapi import *
-from .gogbase import GOGBase
+from .gogapi import gogapi
+from .gogbase import GOGBase, GOGNeedNetworkMetaClass
+from .utilities import CoroutinePool, Requester
 import asyncio
 import zlib
 import dateutil.parser
+import json
 
 
 class RepoProductV1(GOGBase):
@@ -290,7 +292,7 @@ class RepoV2(GOGBase):
         return self.__cloud_saves
 
 
-class Build(GOGBase):
+class Build(GOGBase, GOGNeedNetworkMetaClass):
 
     def __init__(self, build_data):
         self.__build_id = build_data.get('build_id')
@@ -305,11 +307,10 @@ class Build(GOGBase):
         self.__legacy_build_id = build_data.get('legacy_build_id', None)
 
     @classmethod
-    async def follow_link(cls, build_data):
+    async def create(cls, build_data):
         self = Build(build_data)
-        repo_data = build_data.get('link')
-        if isinstance(repo_data, str):
-            repo_data = await self.__get_repo_data(repo_data, self.__gen)
+        repo_data = await self.__get_repo_data(build_data.get('link'), self.__gen)
+
         if isinstance(repo_data, Exception):
             raise repo_data
         if self.__gen == 1:
@@ -322,17 +323,18 @@ class Build(GOGBase):
             raise ValueError('Generation not supported')
         return self
 
+    @classmethod
+    async def create_multi(cls, builds_data: list):
+        coro_pool = CoroutinePool(coro_list=[Build.create(build_data) for build_data in builds_data])
+        return await coro_pool.run_all()
+
     async def __get_repo_data(self, url, gen):
-        async with APIRequester() as request:
+        async with Requester() as request:
+            data = await request.get(url)
             if gen == 1:
-                data = await request.get(url)
-                if not isinstance(data, Exception):
-                    data = json.loads(data['text'])
+                data = json.loads(data.text)
             elif gen == 2:
-                data = await request.get(url)
-                if not isinstance(data, Exception):
-                    data = zlib.decompress(data.get('text')).decode("utf-8")
-                    data = json.loads(data)
+                data = json.loads(zlib.decompress(data.content).decode("utf-8"))
             else:
                 data = ValueError('Generation not supported')
 
@@ -383,44 +385,35 @@ class Build(GOGBase):
         return self.__repo_v2
 
 
-class BuildsTable(GOGBase):
+class BuildsTable(GOGBase, GOGNeedNetworkMetaClass):
 
-    def __init__(self, builds_data):
-        self.__builds = list(map(lambda x: Build(x), builds_data.get('items', [])))
+    def __init__(self, prod_id):
+        self.__builds = list()
+        self.__prod_id = prod_id
 
     @classmethod
-    async def create_repo(cls, builds_data):
-        self = BuildsTable(builds_data)
-        self.__builds = await self.__gen_all_build_obj(builds_data)
+    async def create(cls, prod_id: str, os: str):
+        builds_data = await gogapi.get_product_builds(prod_id, os)
+        builds_data = builds_data.get('items', [])
+        self = BuildsTable(prod_id)
+        self.__builds = await Build.create_multi(builds_data)
+        cls.try_exception(*self.__builds)
+
         return self
 
-    async def __gen_all_build_obj(self, builds_data):
-        return await asyncio.gather(*[Build.follow_link(data) for data in builds_data.get('items', [])])
+    @classmethod
+    async def create_multi(cls, prod_ids: list, os_list: list):
+        coro_list = list()
+        for prod_id in prod_ids:
+            for os in os_list:
+                coro_list.append(BuildsTable.create(prod_id, os))
+        coro_pool = CoroutinePool(coro_list=coro_list)
+        return await coro_pool.run_all()
 
     @property
     def builds(self):
         return self.__builds
 
-
-def error_chk(builds_data):
-    if isinstance(builds_data, GOGBaseException):
-        return True
-    else:
-        return False
-
-
-async def gen_builds_table_wrap(builds_data):
-    if error_chk(builds_data):
-        return await builds_data
-    else:
-        return await BuildsTable.create_repo(builds_data)
-
-
-async def create_builds_tasks(prod_id, platform):
-    api = API()
-    data = await api.get_product_builds(prod_id, platform)
-    return await asyncio.gather(*[gen_builds_table_wrap(builds_data) for builds_data in data])
-
-
-def create_multi_builds(prod_id, platform):
-    return asyncio.run(create_builds_tasks(prod_id, platform))
+    @property
+    def product(self):
+        return self.__prod_id

@@ -1,8 +1,9 @@
-from .gogapi import API, APIUtility
-from .gogbase import GOGBase, GOGSimpleClass, GOGDownloadable
+from .gogapi import gogapi
+from .gogbase import *
 import asyncio
 import dateutil.parser
 from .gogexceptions import GOGBaseException
+from .utilities import get_id_from_url, CoroutinePool
 
 
 class Rating(GOGBase):
@@ -295,7 +296,7 @@ class Patche(Installer):
     pass
 
 
-class GOGProduct(GOGBase):
+class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
 
     @property
     def id(self):
@@ -459,26 +460,22 @@ class GOGProduct(GOGBase):
 
     @classmethod
     async def create(cls, prod_id):
-        prod_data, prod_ext_data, prod_rating_data = await GOGProduct.__get_needed_data(prod_id)
-        prod_data = prod_data[0]
-        prod_ext_data = prod_ext_data[0]
-        prod_rating_data = prod_rating_data[0]
+        prod_data, prod_ext_data, prod_rating_data = await asyncio.gather(gogapi.get_product_data(prod_id),
+                                                                          gogapi.get_extend_detail(prod_id),
+                                                                          gogapi.get_rating(prod_id),
+                                                                          return_exceptions=True)
 
-        if isinstance(prod_data, GOGBaseException):
-            raise prod_data
-        elif isinstance(prod_ext_data, GOGBaseException):
-            raise prod_ext_data
-        elif isinstance(prod_rating_data, GOGBaseException):
-            raise prod_rating_data
-        else:
-            return GOGProduct(prod_data, prod_ext_data, prod_rating_data)
+        try:
+            cls.try_exception(prod_data, prod_ext_data, prod_rating_data)
+        except Exception:
+            raise
 
-    @staticmethod
-    async def __get_needed_data(prod_id):
-        api = API()
-        return await asyncio.gather(api.get_product_data(prod_id),
-                                     api.get_extend_detail(prod_id),
-                                     api.get_rating(prod_id))
+        return GOGProduct(prod_data, prod_ext_data, prod_rating_data)
+
+    @classmethod
+    async def create_multi(cls, prod_ids: list):
+        coro_pool = CoroutinePool(coro_list=[GOGProduct.create(prod_id) for prod_id in prod_ids])
+        return await coro_pool.run_all(return_exceptions=True)
 
     def __parse_data(self, data):
         if '_embedded' not in data:
@@ -523,13 +520,13 @@ class GOGProduct(GOGBase):
             self.__additionalRequirements = data.get('additionalRequirements', '').strip()
             self.__links = Links(data['_links'])
             self.__requiresGames = list(
-                map(lambda x: APIUtility().get_id_from_url(x['href']), data['_links'].get('requiresGames', [])))
+                map(lambda x: get_id_from_url(x['href']), data['_links'].get('requiresGames', [])))
             self.__requiredByGames = list(
-                map(lambda x: APIUtility().get_id_from_url(x['href']), data['_links'].get('isRequiredByGames', [])))
+                map(lambda x: get_id_from_url(x['href']), data['_links'].get('isRequiredByGames', [])))
             self.__includesGames = list(
-                map(lambda x: APIUtility().get_id_from_url(x['href']), data['_links'].get('includesGames', [])))
+                map(lambda x: get_id_from_url(x['href']), data['_links'].get('includesGames', [])))
             self.__includedInGames = list(
-                map(lambda x: APIUtility().get_id_from_url(x['href']), data['_links'].get('isIncludedInGames', [])))
+                map(lambda x: get_id_from_url(x['href']), data['_links'].get('isIncludedInGames', [])))
 
     def __parse_ext_data(self, data):
         self.__slug = data.get('slug', '').strip()
@@ -548,35 +545,3 @@ class GOGProduct(GOGBase):
 
     def __parse_rating_data(self, data):
         self.__averageRating = Rating(data)
-
-
-def error_chk(prod_data, prod_ext_data, prod_rating_data):
-    if isinstance(prod_data, GOGBaseException) or \
-            isinstance(prod_ext_data, GOGBaseException) or \
-            isinstance(prod_rating_data, GOGBaseException):
-        return True
-    else:
-        return False
-
-
-def gen_product_obj_wrap(prod_id, prod_data, prod_ext_data, prod_rating_data):
-    if error_chk(prod_data, prod_ext_data, prod_rating_data):
-        try:
-            return GOGProduct(prod_id)
-        except Exception as e:
-            return e
-    else:
-        return GOGProduct(prod_data, prod_ext_data, prod_rating_data)
-
-
-async def create_product_tasks(ids):
-    api = API()
-    prod_data, prod_ext_data, prod_rating_data =  await asyncio.gather(api.get_product_data(ids),
-                                                                       api.get_extend_detail(ids),
-                                                                       api.get_rating(ids))
-    return list(map(lambda x: gen_product_obj_wrap(ids[x], prod_data[x], prod_ext_data[x], prod_rating_data[x]),
-                    range(0, len(ids))))
-
-
-def create_multi_product(ids):
-    return asyncio.run(create_product_tasks(ids))

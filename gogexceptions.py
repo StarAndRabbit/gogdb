@@ -1,3 +1,5 @@
+from aiohttp.client_exceptions import ClientResponseError
+
 class GOGBaseException(Exception):
     pass
 
@@ -12,16 +14,31 @@ class GOGNetworkError(GOGBaseException):
         super().__init__('Network Error, try again later')
 
 
-class GOGProductNotFound(GOGBaseException):
+class GOGNotFound(GOGBaseException):
 
+    def __init__(self):
+        super().__init__("Page Not Fund")
+
+
+class GOGResponseError(GOGBaseException):
+
+    @classmethod
+    def judge_status(cls, exp: ClientResponseError):
+        if exp.status == 404:
+            return GOGNotFound()
+        else:
+            return GOGNetworkError()
+
+
+class GOGProductNotFound(GOGBaseException):
     def __init__(self, prod_id):
         self.product_id = prod_id
-        super().__init__(f"product {self.product_id} not exists")
+        super().__init__(f'Product {prod_id} not exists')
 
 
 class GOGUnknowError(GOGBaseException):
 
-    def __init__(self, exp_instance):
+    def __init__(self, exp_instance: Exception):
         super().__init__(f"error type: {type(exp_instance)}\nerror message: {str(exp_instance)}")
 
 

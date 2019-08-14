@@ -1,6 +1,6 @@
-from .gogapi import API
-from .gogbase import GOGBase
-import asyncio
+from .gogapi import gogapi
+from .gogbase import GOGBase, GOGNeedNetworkMetaClass
+
 
 class SignalPrice(GOGBase):
 
@@ -37,30 +37,36 @@ class SignalPrice(GOGBase):
         self.__priority = priority
 
 
-class GOGPrice(GOGBase):
+class GOGPrice(GOGBase, GOGNeedNetworkMetaClass):
 
-    def __init__(self, prod_id, price_data):
-        price_data = price_data[prod_id]
-
-        self.__prod_id = prod_id
+    def __init__(self, price_data):
+        self.__prod_id = price_data['product']
         self.__prices = []
 
-        bprice_data = price_data['basePrice']
-        fprice_data = price_data['finalPrice']
+        price_data = price_data['prices']
 
-        for country in bprice_data:
-            for currency in bprice_data[country]:
-                if currency is not 'defaultCurrency':
-                    bprice = bprice_data[country][currency]
-                    fprice = fprice_data[country][currency]
-                    priority = 0 if bprice_data[country]['defaultCurrency'] == currency else 1
-                    self.__prices.append(SignalPrice(str(self.__prod_id), country, currency, bprice, fprice, priority))
+        for country in price_data:
+            for data in price_data[country]:
+                self.__prices.append(SignalPrice(str(self.__prod_id),
+                                                 country,
+                                                 data['currency'],
+                                                 data['basePrice'],
+                                                 data['finalPrice'],
+                                                 0 if data['isDefault'] else 1))
 
     @classmethod
-    async def create(cls, prod_id, countries):
-        api = API()
-        price_data = await api.get_product_prices(prod_id, countries)
-        return GOGPrice(prod_id, price_data)
+    async def create(cls, prod_id: str, countries: list):
+        prod_id = [str(prod_id)]
+        price_data = await gogapi.get_price_in_countries(prod_id, countries)
+        return GOGPrice(price_data[0])
+
+    @classmethod
+    async def create_multi(cls, prod_ids: list, countries: list):
+        price_datas = await gogapi.get_price_in_countries(prod_ids, countries)
+        objects = list()
+        for data in price_datas:
+            objects.append(GOGPrice(data))
+        return objects
 
     @property
     def product_id(self):
@@ -69,16 +75,3 @@ class GOGPrice(GOGBase):
     @property
     def prices(self):
         return self.__prices
-
-
-async def create_multi_prices_tasks(ids, countries):
-    if not isinstance(ids, list) and not isinstance(ids, tuple):
-        raise TypeError()
-    else:
-        api = API()
-        prod_prices_data = await api.get_product_prices(ids, countries)
-        return list(map(lambda x: GOGPrice(x, prod_prices_data), ids))
-
-
-def create_multi_product_prices(ids, countries):
-    return asyncio.run(create_multi_prices_tasks(ids, countries))
