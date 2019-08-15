@@ -294,7 +294,7 @@ class RepoV2(GOGBase):
 
 class Build(GOGBase, GOGNeedNetworkMetaClass):
 
-    def __init__(self, build_data):
+    def __init__(self, build_data, isDefault=False):
         self.__build_id = build_data.get('build_id')
         self.__product_id = build_data.get('product_id')
         self.__os = build_data.get('os')
@@ -305,10 +305,11 @@ class Build(GOGBase, GOGNeedNetworkMetaClass):
         self.__date_published = dateutil.parser.parse(build_data.get('date_published')).replace(tzinfo=None)
         self.__gen = build_data.get('generation')
         self.__legacy_build_id = build_data.get('legacy_build_id', None)
+        self.__is_default = isDefault
 
     @classmethod
-    async def create(cls, build_data):
-        self = Build(build_data)
+    async def create(cls, build_data, isDefault=False):
+        self = Build(build_data, isDefault)
         repo_data = await self.__get_repo_data(build_data.get('link'), self.__gen)
 
         if isinstance(repo_data, Exception):
@@ -325,7 +326,13 @@ class Build(GOGBase, GOGNeedNetworkMetaClass):
 
     @classmethod
     async def create_multi(cls, builds_data: list):
-        coro_pool = CoroutinePool(coro_list=[Build.create(build_data) for build_data in builds_data])
+        if len(builds_data) > 0:
+            coro_list = [Build.create(builds_data[0], True)]
+            if len(builds_data) > 1:
+                coro_list.extend([Build.create(build_data) for build_data in builds_data[1:]])
+        else:
+            coro_list = []
+        coro_pool = CoroutinePool(coro_list=coro_list)
         return await coro_pool.run_all()
 
     async def __get_repo_data(self, url, gen):
@@ -339,6 +346,10 @@ class Build(GOGBase, GOGNeedNetworkMetaClass):
                 data = ValueError('Generation not supported')
 
             return data
+
+    @property
+    def isDefault(self):
+        return self.__is_default
 
     @property
     def buildId(self):
