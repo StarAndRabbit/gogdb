@@ -177,9 +177,9 @@ class Requester:
         retries = 0
         event_str = f'{method} {url} with params: {params}, data: {data}, json: {json}, cookies: {cookies}'
         self.__logger.debug(event_str)
-        while True:
-            headers = self.__headers.update(headers) if headers is not None else self.__headers
 
+        headers = {**self.__headers, **headers} if headers is not None else self.__headers
+        while True:
             if retries != 0:
                 self.__logger.debug(f'Retry Times {retries}')
             try:
