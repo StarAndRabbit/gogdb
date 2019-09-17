@@ -619,6 +619,6 @@ class Country(db.Entity, BaseModel):
     code = Required(str)
     name = Required(str)
     priority = Required(int)
-    finalPriceRecord = Optional(FinalPriceRecord)
-    price = Optional(Price)
+    finalPriceRecord = Set(FinalPriceRecord)
+    price = Set(Price)
     PrimaryKey(code, priority)
