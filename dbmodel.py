@@ -12,24 +12,28 @@ db = Database()
 
 class ChangeMethods:
     @property
-    def Initialized(self):
-        return 'initialized'
+    def initialized(self):
+        return 'Initialized'
 
     @property
-    def Added(self):
-        return 'added'
+    def added(self):
+        return 'Added'
 
     @property
-    def Changed(self):
-        return 'changed'
+    def changed(self):
+        return 'Changed'
 
     @property
-    def Removed(self):
-        return 'removed'
+    def removed(self):
+        return 'Removed'
 
     @property
-    def Invisible(self):
-        return 'invisible'
+    def invisible(self):
+        return 'Invisible'
+
+    @property
+    def set(self):
+        return 'Set'
 
 
 changeMethods = ChangeMethods()
@@ -60,12 +64,12 @@ class BaseModel(object):
         logger = logging.getLogger('GOGDB.DataBase')
         logger.debug(f'Call {cls.__dict__["_table_"]}.{func_name()}')
 
-        pk_columns = cls.__dict__['_pk_columns_']
+        pk_columns = cls.__dict__['_pk_paths_']
         if all(item in kwargs.keys() for item in pk_columns) is False:
             logger.error('The primary key is not included in the params')
             raise NeedPrimaryKey('The primary key is not included in the params')
 
-        get_condition = [f'{pk} = {kwargs[pk]}' for pk in pk_columns]
+        get_condition = [f'{pk} = \'{kwargs[pk]}\'' for pk in pk_columns]
         sql_string = f'SELECT * FROM {cls.__dict__["_table_"]} WHERE {" and ".join(get_condition)}'
         obj = cls.get_by_sql(sql_string)
         if obj is None:
@@ -281,8 +285,9 @@ class ChangeRecord(db.Entity, BaseModel):
     @classmethod
     def dispatch_changeid(cls, product):
         now = datetime.utcnow()
-        crs = cls.select(lambda cr: now.replace(tzinfo=None) < cr.dateTime + timedelta(minutes=30)\
-                                    and cr.game == product).order_by(cls.dateTime)
+        crs = cls.select(
+            lambda cr: now.replace(tzinfo=None) < cr.dateTime + timedelta(minutes=30) and cr.game == product).order_by(
+            cls.dateTime)
         if len(crs) > 0:
             return list(crs)[0]
         else:
@@ -290,12 +295,11 @@ class ChangeRecord(db.Entity, BaseModel):
             change_id = sha256(bytes(f'{product.id}{unix_now}', encoding='utf8')).hexdigest()
             return ChangeRecord(changeId=change_id, game=product, dateTime=now)
 
-    def record(self, method, group='', column='', old='', new=''):
+    def record(self, args, formatter):
         saved_changes = len(self.changes)
-        old = str(old)
-        new = str(new)
-        BaseChange(id=saved_changes, changeRecord=self, method=method, group=group, column=column,
-                   oldValue=old, newValue=new)
+        args = list(map(lambda x: str(x), args))
+        change_fmt = ChangeFormatter.save_into_db(**{'formatString':formatter})
+        BaseChange(id=saved_changes, changeRecord=self, args=args, changeFormatter=change_fmt)
 
 
 class Tag(db.Entity, BaseModel):
@@ -456,12 +460,12 @@ class AchievementRarityLevel(db.Entity, BaseModel):
 class BaseChange(db.Entity, BaseModel):
     id = Required(int)
     changeRecord = Required(ChangeRecord)
-    method = Required(str)
-    group = Optional(str)  # table name or other string
-    column = Optional(str)
-    oldValue = Optional(str)
-    newValue = Optional(str)
+    args = Required(StrArray)
+    changeFormatter = Required('ChangeFormatter')
     PrimaryKey(id, changeRecord)
+
+    def format(self):
+        return self.changeFormatter.formatString.format(*[arg for arg in self.args])
 
 
 class Build(db.Entity, BaseModel):
@@ -607,12 +611,24 @@ class Game(db.Entity, BaseModel):
     repositoryProductV1 = Optional(RepositoryProductV1)
     repositoryProductV2 = Optional(RepositoryProductV2)
 
+    def after_insert(self):
+        change_id = ChangeRecord.dispatch_changeid(self)
+        fmt_str = changeMethods.added + ' Product ID {0}'
+        args = [str(self.id)]
+        change_id.record(args, fmt_str)
+
     def after_update(self):
         if len(self.oldValueDict) != 0:
-            changeId = ChangeRecord.dispatch_changeid(self)
-            changed_dict = self.to_dict(only=self.oldValueDict, with_collections=True, related_objects=True)
+            change_id = ChangeRecord.dispatch_changeid(self)
             for key in self.oldValueDict.keys():
-                changeId.record(changeMethods.Changed, 'Game', key, self.oldValueDict[key], changed_dict[key])
+                if key == 'initialized' and self.oldValueDict[key] is False:
+                    fmt_str = 'Product {0} ' + changeMethods.initialized
+                    args = [str(self.id)]
+                    change_id.record(args, fmt_str)
+                elif key == 'invisible' and self.oldValueDict[key] is False:
+                    fmt_str = changeMethods.set + ' Product {0} ' + changeMethods.invisible
+                    args = [str(self.id)]
+                    change_id.record(args, fmt_str)
 
 
 class Country(db.Entity, BaseModel):
@@ -622,3 +638,8 @@ class Country(db.Entity, BaseModel):
     finalPriceRecord = Set(FinalPriceRecord)
     price = Set(Price)
     PrimaryKey(code, priority)
+
+
+class ChangeFormatter(db.Entity, BaseModel):
+    formatString = PrimaryKey(str)
+    baseChanges = Set(BaseChange)
