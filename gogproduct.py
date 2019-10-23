@@ -379,7 +379,7 @@ class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
         return self.__supportedOS
 
     @property
-    def contentSystemCompatibilit(self):
+    def contentSystemCompatibility(self):
         return self.__content_system_compatibility
 
     @property
@@ -391,8 +391,8 @@ class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
         return self.__tags
 
     @property
-    def localization(self):
-        return self.__localization
+    def localizations(self):
+        return self.__localizations
 
     @property
     def image(self):
@@ -507,7 +507,7 @@ class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
                 map(lambda x: OS(x['operatingSystem']), embed.get('supportedOperatingSystems', [])))
             self.__features = list(map(lambda x: Feature(x), embed.get('features', [])))
             self.__tags = list(map(lambda x: Tag(x), embed.get('tags', [])))
-            self.__localization = list(map(lambda x: Localization(x['_embedded']), embed.get('localizations', [])))
+            self.__localizations = list(map(lambda x: Localization(x['_embedded']), embed.get('localizations', [])))
             self.__screenshots = list(map(lambda x: Screenshot(x), embed.get('screenshots', [])))
             self.__videos = list(map(lambda x: Video(x), embed.get('videos', [])))
             self.__editions = list(map(lambda x: str(x['id']), embed.get('editions', [])))
