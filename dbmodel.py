@@ -5,6 +5,7 @@ from .gogexceptions import NeedPrimaryKey
 import logging
 from .utilities import func_name
 from hashlib import sha256
+from .changetemplate import change_templates
 
 
 db = Database()
@@ -295,11 +296,11 @@ class ChangeRecord(db.Entity, BaseModel):
             change_id = sha256(bytes(f'{product.id}{unix_now}', encoding='utf8')).hexdigest()
             return ChangeRecord(changeId=change_id, game=product, dateTime=now)
 
-    def record(self, args, formatter):
+    def record(self, args, template):
         saved_changes = len(self.changes)
         args = list(map(lambda x: str(x), args))
-        change_fmt = ChangeFormatter.save_into_db(**{'formatString':formatter})
-        BaseChange(id=saved_changes, changeRecord=self, args=args, changeFormatter=change_fmt)
+        temp = FormatTemplate.save_into_db(**template)
+        BaseChange(id=saved_changes, changeRecord=self, args=args, template=temp)
 
 
 class Tag(db.Entity, BaseModel):
@@ -461,11 +462,11 @@ class BaseChange(db.Entity, BaseModel):
     id = Required(int)
     changeRecord = Required(ChangeRecord)
     args = Required(StrArray)
-    changeFormatter = Required('ChangeFormatter')
+    template = Required('FormatTemplate')
     PrimaryKey(id, changeRecord)
 
     def format(self):
-        return self.changeFormatter.formatString.format(*[arg for arg in self.args])
+        return self.template.formatString.format(*[arg for arg in self.args])
 
 
 class Build(db.Entity, BaseModel):
@@ -613,22 +614,18 @@ class Game(db.Entity, BaseModel):
 
     def after_insert(self):
         change_id = ChangeRecord.dispatch_changeid(self)
-        fmt_str = changeMethods.added + ' Product ID {0}'
         args = [str(self.id)]
-        change_id.record(args, fmt_str)
+        change_id.record(args, change_templates.prod_add)
 
     def after_update(self):
         if len(self.oldValueDict) != 0:
             change_id = ChangeRecord.dispatch_changeid(self)
             for key in self.oldValueDict.keys():
+                args = [str(self.id)]
                 if key == 'initialized' and self.oldValueDict[key] is False:
-                    fmt_str = 'Product {0} ' + changeMethods.initialized
-                    args = [str(self.id)]
-                    change_id.record(args, fmt_str)
+                    change_id.record(args, change_templates.prod_init)
                 elif key == 'invisible' and self.oldValueDict[key] is False:
-                    fmt_str = changeMethods.set + ' Product {0} ' + changeMethods.invisible
-                    args = [str(self.id)]
-                    change_id.record(args, fmt_str)
+                    change_id.record(args, change_templates.prod_invs)
 
 
 class Country(db.Entity, BaseModel):
@@ -640,6 +637,10 @@ class Country(db.Entity, BaseModel):
     PrimaryKey(code, priority)
 
 
-class ChangeFormatter(db.Entity, BaseModel):
-    formatString = PrimaryKey(str)
+class FormatTemplate(db.Entity, BaseModel):
+    name = Required(str)
+    type = Required(str)
+    argsName = Required(StrArray)  # editor not support StrArray now, use str instead
+    formatString = Required(str)
     baseChanges = Set(BaseChange)
+    PrimaryKey(name, formatString)

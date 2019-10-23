@@ -67,3 +67,6 @@ class GOGAccountError(GOGLoginError):
 
 class NeedPrimaryKey(GOGDatabaseException):
     pass
+
+class CRTemplateFormatError(GOGDatabaseException):
+    pass
