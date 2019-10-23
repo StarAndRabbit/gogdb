@@ -11,35 +11,6 @@ from .changetemplate import change_templates
 db = Database()
 
 
-class ChangeMethods:
-    @property
-    def initialized(self):
-        return 'Initialized'
-
-    @property
-    def added(self):
-        return 'Added'
-
-    @property
-    def changed(self):
-        return 'Changed'
-
-    @property
-    def removed(self):
-        return 'Removed'
-
-    @property
-    def invisible(self):
-        return 'Invisible'
-
-    @property
-    def set(self):
-        return 'Set'
-
-
-changeMethods = ChangeMethods()
-
-
 class BaseModel(object):
     oldValueDict = dict()
 
@@ -65,7 +36,13 @@ class BaseModel(object):
         logger = logging.getLogger('GOGDB.DataBase')
         logger.debug(f'Call {cls.__dict__["_table_"]}.{func_name()}')
 
-        pk_columns = cls.__dict__['_pk_paths_']
+        # black magic to get primary key
+        lowcase_pk_columns = cls.__dict__['_pk_columns_']
+        pk_columns = list()
+        for col in cls.__dict__['_adict_'].keys():
+            if col.lower() in lowcase_pk_columns:
+                pk_columns.append(col)
+
         if all(item in kwargs.keys() for item in pk_columns) is False:
             logger.error('The primary key is not included in the params')
             raise NeedPrimaryKey('The primary key is not included in the params')
@@ -104,7 +81,13 @@ class BaseModel(object):
         logger = logging.getLogger('GOGDB.DataBase')
         logger.debug(f'Call {self.__class__.__dict__["_table_"]}.{func_name()}')
 
-        pk_columns = self.__class__.__dict__['_pk_columns_']
+        # black magic to get primary key
+        lowcase_pk_columns = self.__class__.__dict__['_pk_columns_']
+        pk_columns = list()
+        for col in self.__class__.__dict__['_adict_'].keys():
+            if col.lower() in lowcase_pk_columns:
+                pk_columns.append(col)
+
         obj_dict = self.to_dict(exclude=pk_columns, with_collections=True, related_objects=True)
         self.oldValueDict = dict()
 
