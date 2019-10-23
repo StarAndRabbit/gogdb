@@ -38,17 +38,21 @@ class GOGBase:
             else:
                 return value.to_dict(with_collections=with_collections, related_objects=related_objects)
         elif isinstance(value, list):
-            for i in range(0, len(value)):
-                tmp = self.__deal_data(value[i], with_collections, related_objects)
-                if tmp is not None:
-                    value[i] = tmp
-            return value
+            if with_collections:
+                for i in range(0, len(value)):
+                    tmp = self.__deal_data(value[i], with_collections, related_objects)
+                    if tmp is not None:
+                        value[i] = tmp
+                return value
+            else:
+                return None
         elif isinstance(value, dict):
-            for key in value:
-                tmp = self.__deal_data(value[key], with_collections, related_objects)
-                if tmp is not None:
-                    value[key] = tmp
-            return value
+            if with_collections:
+                for key in value:
+                    tmp = self.__deal_data(value[key], with_collections, related_objects)
+                    if tmp is not None:
+                        value[key] = tmp
+                return value
         elif isinstance(value, str):
             return value.strip()
         else:
