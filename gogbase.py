@@ -58,6 +58,10 @@ class GOGBase:
         else:
             return value
 
+    @abstractmethod
+    def save_or_update(self):
+        pass
+
 
 class GOGSimpleClass(GOGBase):
 

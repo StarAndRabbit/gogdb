@@ -1,7 +1,6 @@
 from .gogapi import gogapi
 from .gogbase import GOGBase, GOGNeedNetworkMetaClass
 from .utilities import CoroutinePool, Requester
-import asyncio
 import zlib
 import dateutil.parser
 import json

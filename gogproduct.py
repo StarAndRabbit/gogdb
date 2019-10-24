@@ -2,8 +2,9 @@ from .gogapi import gogapi
 from .gogbase import *
 import asyncio
 import dateutil.parser
-from .gogexceptions import GOGBaseException
 from .utilities import get_id_from_url, CoroutinePool
+from . import dbmodel as DB
+from pony import orm
 
 
 class Rating(GOGBase):
@@ -20,17 +21,25 @@ class Rating(GOGBase):
         self.__rating = rating_data['value']
         self.__count = rating_data['count']
 
+    def save_or_update(self, game):
+        dict_data = self.to_dict()
+        dict_data['game'] = game
+        return DB.AverageRating.save_into_db(**dict_data)
+
 
 class Publisher(GOGSimpleClass):
-    pass
+    def save_or_update(self):
+        return DB.Publisher.save_into_db(**self.to_dict())
 
 
 class Developer(GOGSimpleClass):
-    pass
+    def save_or_update(self):
+        return DB.Developer.save_into_db(**self.to_dict())
 
 
 class OS(GOGSimpleClass):
-    pass
+    def save_or_update(self):
+        return DB.OS.save_into_db(**self.to_dict())
 
 
 class Feature(GOGSimpleClass):
@@ -43,6 +52,9 @@ class Feature(GOGSimpleClass):
         self.__id = feature_data['id'].strip()
         super().__init__(feature_data)
 
+    def save_or_update(self):
+        return DB.Feature.save_into_db(**self.to_dict())
+
 
 class Tag(GOGSimpleClass):
 
@@ -54,6 +66,9 @@ class Tag(GOGSimpleClass):
         self.__id = tag_data['id']
         super().__init__(tag_data)
 
+    def save_or_update(self):
+        return DB.Tag.save_into_db(**self.to_dict())
+
 
 class Language(GOGSimpleClass):
 
@@ -64,6 +79,9 @@ class Language(GOGSimpleClass):
     def __init__(self, language_data):
         self.__code = language_data['code'].strip()
         super().__init__(language_data)
+
+    def save_or_update(self):
+        return DB.Language.save_into_db(**self.to_dict())
 
 
 class Localization(GOGBase):
@@ -80,6 +98,12 @@ class Localization(GOGBase):
         self.__language = Language(local_data['language'])
         self.__type = local_data['localizationScope']['type']
 
+    def save_or_update(self):
+        self.language.save_or_update()
+        dict_data = self.to_dict()
+        dict_data['language'] = self.language.to_dict()['code']
+        return DB.Localization.save_into_db(**dict_data)
+
 
 class Series(GOGSimpleClass):
 
@@ -90,6 +114,9 @@ class Series(GOGSimpleClass):
     def __init__(self, series_data):
         self.__id = series_data['id']
         super().__init__(series_data)
+
+    def save_or_update(self):
+        return DB.Series.save_into_db(**self.to_dict())
 
 
 class Links(GOGBase):
@@ -141,6 +168,11 @@ class Links(GOGBase):
         self.__logo = links_data.get('logo', {}).get('href', '')
         self.__galaxyBackgroundImage = links_data.get('galaxyBackgroundImage', {}).get('href', '')
 
+    def save_or_update(self, game):
+        dict_data = self.to_dict()
+        dict_data['game'] = game
+        return DB.GameLink.save_into_db(**dict_data)
+
 
 class Images(GOGBase):
 
@@ -159,12 +191,42 @@ class Images(GOGBase):
     def template(self):
         return list(map(lambda x: self.__href.replace('{formatter}', x), self.__formatters))
 
+    def save_or_update(self, game):
+        def fmter_obj(fmter):
+            if orm.exists(fmt for fmt in DB.Formatter if fmt.formatter == fmter):
+                return DB.Formatter[fmter]
+            else:
+                return DB.Formatter(formatter=fmter)
+        fmts = list(map(fmter_obj, self.formatters))
+        dict_data = self.to_dict()
+        dict_data['formatters'] = fmts
+        dict_data['game'] = game
+        return DB.Image.save_into_db(**dict_data)
+
 
 class Screenshot(Images):
 
-    def __init__(self, screenshot_data):
+    @property
+    def id(self):
+        return self.__id
+
+    def __init__(self, index, screenshot_data):
         sc_data = screenshot_data['_links']['self']
+        self.__id = index
         super().__init__(sc_data)
+
+    def save_or_update(self, game):
+        def fmter_obj(fmter):
+            if orm.exists(fmt for fmt in DB.Formatter if fmt.formatter == fmter):
+                return DB.Formatter[fmter]
+            else:
+                return DB.Formatter(formatter=fmter)
+        fmts = list(map(fmter_obj, self.formatters))
+        dict_data = self.to_dict()
+        dict_data['formatters'] = fmts
+        dict_data['game'] = game
+        obj = DB.Screenshot.save_into_db(**dict_data)
+        return obj
 
 
 class VideoProvider(GOGBase):
@@ -187,8 +249,14 @@ class VideoProvider(GOGBase):
         self.__videoHref = links['self']['href'].replace(video_data['videoId'], '{videoId}')
         self.__thumbnailHref = links['thumbnail']['href'].replace(video_data['thumbnailId'], '{thumbnailId}')
 
+    def save_or_update(self):
+        return DB.VideoProvider.save_into_db(**self.to_dict())
+
 
 class Video(GOGBase):
+    @property
+    def id(self):
+        return self.__id
 
     @property
     def provider(self):
@@ -202,10 +270,18 @@ class Video(GOGBase):
     def thumbnailId(self):
         return self.__thumbnailId
 
-    def __init__(self, video_data):
+    def __init__(self, index, video_data):
+        self.__id = index
         self.__provider = VideoProvider(video_data)
         self.__videoId = video_data['videoId']
         self.__thumbnailId = video_data['thumbnailId']
+
+    def save_or_update(self, game):
+        provider = self.provider.save_or_update()
+        dict_data = self.to_dict()
+        dict_data['game'] = game
+        dict_data['provider'] = provider
+        return DB.Video.save_into_db(**dict_data)
 
 
 class BonusType(GOGBase):
@@ -508,8 +584,16 @@ class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
             self.__features = list(map(lambda x: Feature(x), embed.get('features', [])))
             self.__tags = list(map(lambda x: Tag(x), embed.get('tags', [])))
             self.__localizations = list(map(lambda x: Localization(x['_embedded']), embed.get('localizations', [])))
-            self.__screenshots = list(map(lambda x: Screenshot(x), embed.get('screenshots', [])))
-            self.__videos = list(map(lambda x: Video(x), embed.get('videos', [])))
+
+            def gen_sc(tup_data):
+                i, x = tup_data
+                return Screenshot(i, x)
+            self.__screenshots = list(map(gen_sc, enumerate(embed.get('screenshots', []))))
+
+            def gen_vid(tup_data):
+                i, x = tup_data
+                return Video(i, x)
+            self.__videos = list(map(gen_vid, enumerate(embed.get('videos', []))))
             self.__editions = list(map(lambda x: str(x['id']), embed.get('editions', [])))
             self.__bonuses = list(map(lambda x: Bonus(x), embed.get('bonuses', [])))
 
@@ -545,3 +629,39 @@ class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
 
     def __parse_rating_data(self, data):
         self.__averageRating = Rating(data)
+
+    def __before_save_or_update(self):
+        dict_data = dict()
+        dict_data['publishers'] = list(map(lambda x: x.save_or_update(), self.publishers))
+        dict_data['developers'] = list(map(lambda x: x.save_or_update(), self.developers))
+        dict_data['features'] = list(map(lambda x: x.save_or_update(), self.features))
+        dict_data['tags'] = list(map(lambda x: x.save_or_update(), self.tags))
+        dict_data['supportedOS'] = list(map(lambda x: x.save_or_update(), self.supportedOS))
+        dict_data['contentSystemCompatibility'] = list(map(lambda x: x.save_or_update(),
+                                                           self.contentSystemCompatibility))
+        dict_data['localizations'] = list(map(lambda x: x.save_or_update(), self.localizations))
+        dict_data['series'] = None if self.series is None else self.series.save_or_update()
+
+        return dict_data
+
+    def __after_save_or_update(self):
+        self.averageRating.save_or_update(self.id)
+        self.links.save_or_update(self.id)
+        if self.image is not None:
+            self.image.save_or_update(self.id)
+        list(map(lambda x: x.save_or_update(self.id), self.screenshots))
+        list(map(lambda x: x.save_or_update(self.id), self.videos))
+
+    def save_or_update(self):
+        extra_data = self.__before_save_or_update()
+        extra_data['id'] = self.id
+        dict_data = self.to_dict(with_collections=False)
+        if not orm.exists(sg for sg in DB.Slug if sg.slug == self.slug):
+            dict_data['slug'] = DB.Slug(slug=self.slug)
+        else:
+            dict_data['slug'] = DB.Slug[self.slug]
+
+        DB.GameDetail.save_into_db(**dict_data)
+        DB.GameDetail.save_into_db(**extra_data)
+
+        self.__after_save_or_update()
