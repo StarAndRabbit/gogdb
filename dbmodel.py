@@ -6,6 +6,8 @@ import logging
 from .utilities import func_name
 from hashlib import sha256
 from .changetemplate import change_templates
+import time
+import collections
 
 
 db = Database()
@@ -16,25 +18,34 @@ class BaseModel(object):
 
     @classmethod
     def equals(cls, a, b):
-        if isinstance(a, core.Entity):
+        if isinstance(a, core.Entity) and isinstance(b, core.Entity):
             return type(a) == type(b) and a.get_pk() == b.get_pk()
+        elif isinstance(a, core.Entity) and not isinstance(b, core.Entity):
+            return a.get_pk() == b
+        elif not isinstance(a, core.Entity) and isinstance(b, core.Entity):
+            return a == b.get_pk()
         elif isinstance(a, list) or isinstance(a, tuple):
             if type(a) != type(b):
                 return False
             elif len(a) != len(b):
                 return False
             else:
-                for i in range(0, len(a)):
-                    if not cls.equals(a[i], b[i]):
-                        return False
-                return True
+                tmp_a = list(map(lambda x: x.get_pk() if isinstance(x, core.Entity) else x, a))
+                tmp_b = list(map(lambda x: x.get_pk() if isinstance(x, core.Entity) else x, b))
+                return collections.Counter(tmp_a) == collections.Counter(tmp_b)
         else:
-            return a == b
+            if a == b:
+                return True
+            else:
+                print(f'a: {a}')
+                print(f'b: {b}')
+                return False
 
     @classmethod
     def save_into_db(cls, **kwargs):
         logger = logging.getLogger('GOGDB.DataBase')
         logger.debug(f'Call {cls.__dict__["_table_"]}.{func_name()}')
+        start_time = time.time()
 
         # black magic to get primary key
         lowcase_pk_columns = cls.__dict__['_pk_columns_']
@@ -69,12 +80,14 @@ class BaseModel(object):
                         need_update[col] = kwargs[col]
             if len(need_update) == 0:
                 logger.debug(f'Nothing needs to be done in [{cls.__dict__["_table_"]}]')
+                logger.debug(f'call save_into_db time usage: {time.time() - start_time}')
                 return obj
             else:
                 sql_string = f'{sql_string} FOR UPDATE'
                 obj = cls.get_by_sql(sql_string)
                 obj.set(**need_update)
-                logger.debug(f'Update columns {[key for key in need_update.keys()]} in [{cls.__dict__["_table_"]}]')
+                logger.info(f'Update columns {[key for key in need_update.keys()]} in [{cls.__dict__["_table_"]}]')
+                logger.debug(f'call save_into_db time usage: {time.time() - start_time}')
                 return obj
 
     def update(self, **kwargs):
@@ -355,7 +368,7 @@ class BonusContent(db.Entity, BaseModel):
 class Language(db.Entity, BaseModel):
     code = PrimaryKey(str, auto=True)
     name = Required(str)
-    localization = Optional(Localization)
+    localization = Set(Localization)
     patches = Set(Patche)
     installers = Set(Installer)
     languagePacks = Set(LanguagePack)
