@@ -127,7 +127,7 @@ class GameDetail(db.Entity, BaseModel):
     productType = Required(str)
     globalReleaseDate = Optional(datetime)
     gogReleaseDate = Optional(datetime)
-    averageRating = Optional(Decimal)
+    averageRating = Optional('AverageRating')
     additionalRequirements = Optional(str)
     links = Optional('GameLink')
     publishers = Set('Publisher')
@@ -627,3 +627,9 @@ class FormatTemplate(db.Entity, BaseModel):
     formatString = Required(str)
     baseChanges = Set(BaseChange)
     PrimaryKey(name, formatString)
+
+
+class AverageRating(db.Entity, BaseModel):
+    game = PrimaryKey(GameDetail)
+    rating = Required(Decimal)
+    count = Required(int)
