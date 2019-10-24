@@ -295,7 +295,11 @@ class ChangeRecord(db.Entity, BaseModel):
     def record(self, args, template):
         saved_changes = len(self.changes)
         args = list(map(lambda x: str(x), args))
-        temp = FormatTemplate.save_into_db(**template)
+        flush()
+        if exists(fmttmp for fmttmp in FormatTemplate if fmttmp.name == template['name']):
+            temp = FormatTemplate[template['name']]
+        else:
+            temp = FormatTemplate(**template)
         BaseChange(id=saved_changes, changeRecord=self, args=args, template=temp)
 
 
@@ -634,12 +638,11 @@ class Country(db.Entity, BaseModel):
 
 
 class FormatTemplate(db.Entity, BaseModel):
-    name = Required(str)
+    name = PrimaryKey(str)
     type = Required(str)
     argsName = Required(StrArray)  # editor not support StrArray now, use str instead
     formatString = Required(str)
     baseChanges = Set(BaseChange)
-    PrimaryKey(name, formatString)
 
 
 class AverageRating(db.Entity, BaseModel):
