@@ -250,7 +250,10 @@ class VideoProvider(GOGBase):
         self.__thumbnailHref = links['thumbnail']['href'].replace(video_data['thumbnailId'], '{thumbnailId}')
 
     def save_or_update(self):
-        return DB.VideoProvider.save_into_db(**self.to_dict())
+        if not orm.exists(vp for vp in DB.VideoProvider if vp.provider == self.provider):
+            return DB.VideoProvider(**self.to_dict())
+        else:
+            return DB.VideoProvider[self.provider]
 
 
 class Video(GOGBase):
@@ -298,6 +301,12 @@ class BonusType(GOGBase):
         self.__slug = bonustype_data['slug'].strip()
         self.__type = bonustype_data['name'].strip()
 
+    def save_or_update(self):
+        if not orm.exists(bt for bt in DB.BonusType if bt.slug == self.slug):
+            return DB.BonusType(slug=self.slug, type=self.type)
+        else:
+            return DB.BonusType[self.slug]
+
 
 class Bonus(GOGSimpleClass):
 
@@ -308,6 +317,14 @@ class Bonus(GOGSimpleClass):
     def __init__(self, bonus_data):
         self.__type = BonusType(bonus_data['type'])
         super().__init__(bonus_data)
+
+    def save_or_update(self, game):
+        bonus_type = self.type.save_or_update()
+        dict_data = self.to_dict()
+        dict_data['game'] = game
+        del dict_data['type']
+        dict_data['bonusType'] = bonus_type
+        return DB.Bonus.save_into_db(**dict_data)
 
 
 class Installer(GOGDownloadable):
@@ -330,7 +347,10 @@ class Installer(GOGDownloadable):
         index of OS table
         :return: OS table index
         """
-        return self.__os
+        if self.__os == 'mac':
+            return 'osx'
+        else:
+            return self.__os
 
     @property
     def version(self):
@@ -342,6 +362,19 @@ class Installer(GOGDownloadable):
         self.__os = installer_data['os']
         self.__version = '' if installer_data['version'] is None else installer_data['version'].strip()
         super().__init__(product_slug, installer_data)
+
+    def save_or_update(self, game):
+        dict_data = self.to_dict(with_collections=False)
+        self.save_download(game)
+        orm.flush()
+        dict_data['download'] = game
+        installer_obj = DB.Installer.save_into_db(**dict_data)
+        orm.flush()
+        for file in self.files:
+            file_dict_data = file.to_dict()
+            file_dict_data['installer'] = installer_obj
+            DB.InstallerFile.save_into_db(**file_dict_data)
+        return installer_obj
 
 
 class BonusContent(GOGDownloadable):
@@ -363,13 +396,49 @@ class BonusContent(GOGDownloadable):
         self.__count = bonus_data['count']
         super().__init__(product_slug, bonus_data)
 
+    def save_or_update(self, game):
+        dict_data = self.to_dict(with_collections=False)
+        self.save_download(game)
+        orm.flush()
+        dict_data['download'] = game
+        dict_data['bonus'] = DB.Bonus[game, self.bonus]
+        bonuscont_obj = DB.BonusContent.save_into_db(**dict_data)
+        orm.flush()
+        for file in self.files:
+            file_dict_data = file.to_dict()
+            file_dict_data['bonusContent'] = bonuscont_obj
+            DB.BonusFile.save_into_db(**file_dict_data)
+        return bonuscont_obj
+
 
 class LanguagePack(Installer):
-    pass
+    def save_or_update(self, game):
+        dict_data = self.to_dict(with_collections=False)
+        self.save_download(game)
+        orm.flush()
+        dict_data['download'] = game
+        lanpack_obj = DB.LanguagePack.save_into_db(**dict_data)
+        orm.flush()
+        for file in self.files:
+            file_dict_data = file.to_dict()
+            file_dict_data['bonusContent'] = lanpack_obj
+            DB.LanguagePackFile.save_into_db(**file_dict_data)
+        return lanpack_obj
 
 
 class Patche(Installer):
-    pass
+    def save_or_update(self, game):
+        dict_data = self.to_dict(with_collections=False)
+        self.save_download(game)
+        orm.flush()
+        dict_data['download'] = game
+        patch_obj = DB.Patche.save_into_db(**dict_data)
+        orm.flush()
+        for file in self.files:
+            file_dict_data = file.to_dict()
+            file_dict_data['bonusContent'] = patch_obj
+            DB.PatcheFile.save_into_db(**file_dict_data)
+        return patch_obj
 
 
 class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
@@ -649,8 +718,16 @@ class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
         self.links.save_or_update(self.id)
         if self.image is not None:
             self.image.save_or_update(self.id)
-        list(map(lambda x: x.save_or_update(self.id), self.screenshots))
-        list(map(lambda x: x.save_or_update(self.id), self.videos))
+
+        list(map(lambda y: list(map(lambda x: x.save_or_update(self.id), y)), [
+            self.screenshots,
+            self.videos,
+            self.bonuses,
+            self.downloads['installers'],
+            self.downloads['bonusContent'],
+            self.downloads['languagePacks'],
+            self.downloads['patches']
+        ]))
 
     def save_or_update(self):
         extra_data = self.__before_save_or_update()
@@ -665,3 +742,6 @@ class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
         DB.GameDetail.save_into_db(**extra_data)
 
         self.__after_save_or_update()
+
+        if DB.Game[self.id].initialized == False:
+            DB.Game[self.id].initialized = True

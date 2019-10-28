@@ -1,5 +1,7 @@
 import inspect
 from abc import ABCMeta, abstractmethod
+from . import dbmodel as DB
+from pony import orm
 
 
 class GOGBase:
@@ -111,6 +113,10 @@ class GOGDownloadable(GOGBase):
         self.__id = down_data['id'] if isinstance(down_data['id'], int) else down_data['id'].strip()
         self.__totalSize = down_data['total_size']
         self.__files = list(map(lambda x: GOGFile(product_slug, x), down_data['files']))
+
+    def save_download(self, game):
+        if not orm.exists(dl for dl in DB.Download if dl.game.id == DB.Game[game]):
+            DB.Download(game=DB.GameDetail[DB.Game[game]])
 
 
 class GOGNeedNetworkMetaClass(metaclass=ABCMeta):
