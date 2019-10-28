@@ -37,8 +37,6 @@ class BaseModel(object):
             if a == b:
                 return True
             else:
-                print(f'a: {a}')
-                print(f'b: {b}')
                 return False
 
     @classmethod
@@ -48,58 +46,62 @@ class BaseModel(object):
         start_time = time.time()
 
         # black magic to get primary key
-        lowcase_pk_columns = cls.__dict__['_pk_columns_']
+        pk_objs = cls.__dict__['_pk_attrs_']
+        adict = cls.__dict__['_adict_']
         pk_columns = list()
-        for col in cls.__dict__['_adict_'].keys():
-            if col.lower() in lowcase_pk_columns:
-                pk_columns.append(col)
+        for pk_obj in pk_objs:
+            for key in adict:
+                if adict[key] == pk_obj:
+                    pk_columns.append(key)
+                    break
 
         if all(item in kwargs.keys() for item in pk_columns) is False:
             logger.error('The primary key is not included in the params')
             raise NeedPrimaryKey('The primary key is not included in the params')
 
-        get_condition = [f'{pk} = \'{kwargs[pk]}\'' for pk in pk_columns]
-        sql_string = f'SELECT * FROM {cls.__dict__["_table_"]} WHERE {" and ".join(get_condition)}'
-        obj = cls.get_by_sql(sql_string)
-        if obj is None:
+        pk_value = tuple(kwargs[val] for val in pk_columns)
+        try:
+            obj = cls.__getitem__(pk_value)
+        except:
             logger.debug(f'Insert into [{cls.__dict__["_table_"]}]')
             return cls(**kwargs)
-        else:
-            obj_dict = obj.to_dict(exclude=pk_columns, with_collections=True, related_objects=True)
-            obj.oldValueDict = dict()
 
-            need_update = dict()
-            for col in kwargs.keys():
-                if col in pk_columns:
+        obj_dict = obj.to_dict(exclude=pk_columns, with_collections=True, related_objects=True)
+        obj.oldValueDict = dict()
+
+        need_update = dict()
+        for col in kwargs.keys():
+            if col in pk_columns:
+                continue
+            else:
+                if cls.equals(obj_dict[col], kwargs[col]):
                     continue
                 else:
-                    if cls.equals(obj_dict[col], kwargs[col]):
-                        continue
-                    else:
-                        obj.oldValueDict[col] = obj_dict[col]
-                        need_update[col] = kwargs[col]
-            if len(need_update) == 0:
-                logger.debug(f'Nothing needs to be done in [{cls.__dict__["_table_"]}]')
-                logger.debug(f'call save_into_db time usage: {time.time() - start_time}')
-                return obj
-            else:
-                sql_string = f'{sql_string} FOR UPDATE'
-                obj = cls.get_by_sql(sql_string)
-                obj.set(**need_update)
-                logger.info(f'Update columns {[key for key in need_update.keys()]} in [{cls.__dict__["_table_"]}]')
-                logger.debug(f'call save_into_db time usage: {time.time() - start_time}')
-                return obj
+                    obj.oldValueDict[col] = obj_dict[col]
+                    need_update[col] = kwargs[col]
+        if len(need_update) == 0:
+            logger.debug(f'Nothing needs to be done in [{cls.__dict__["_table_"]}]')
+            logger.debug(f'call save_into_db time usage: {time.time() - start_time}')
+            return obj
+        else:
+            obj.set(**need_update)
+            logger.info(f'Update columns {[key for key in need_update.keys()]} in [{cls.__dict__["_table_"]}]')
+            logger.debug(f'call save_into_db time usage: {time.time() - start_time}')
+            return obj
 
     def update(self, **kwargs):
         logger = logging.getLogger('GOGDB.DataBase')
         logger.debug(f'Call {self.__class__.__dict__["_table_"]}.{func_name()}')
 
         # black magic to get primary key
-        lowcase_pk_columns = self.__class__.__dict__['_pk_columns_']
+        pk_objs = self.__class__.__dict__['_pk_attrs_']
+        adict = self.__class__.__dict__['_adict_']
         pk_columns = list()
-        for col in self.__class__.__dict__['_adict_'].keys():
-            if col.lower() in lowcase_pk_columns:
-                pk_columns.append(col)
+        for pk_obj in pk_objs:
+            for key in adict:
+                if adict[key] == pk_obj:
+                    pk_columns.append(key)
+                    break
 
         obj_dict = self.to_dict(exclude=pk_columns, with_collections=True, related_objects=True)
         self.oldValueDict = dict()
