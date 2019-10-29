@@ -39,7 +39,10 @@ class Developer(GOGSimpleClass):
 
 class OS(GOGSimpleClass):
     def save_or_update(self):
-        return DB.OS.save_into_db(**self.to_dict())
+        try:
+            return DB.OS[self.name]
+        except:
+            return DB.OS(name=self.name)
 
 
 class Feature(GOGSimpleClass):
@@ -363,11 +366,23 @@ class Installer(GOGDownloadable):
         self.__version = '' if installer_data['version'] is None else installer_data['version'].strip()
         super().__init__(product_slug, installer_data)
 
+    def __get_os_obj(self):
+        try:
+            return DB.OS[self.os]
+        except:
+            return DB.OS(name=self.os)
+
+    def __get_lan_obj(self):
+        try:
+            return DB.Language[self.language]
+        except:
+            return DB.Language(code=self.language)
+
     def save_or_update(self, game):
         dict_data = self.to_dict(with_collections=False)
-        self.save_download(game)
-        orm.flush()
-        dict_data['download'] = game
+        dict_data['download'] = GOGDownloadable.get_downloadable_table(game)
+        dict_data['os'] = self.__get_os_obj()
+        dict_data['language'] = self.__get_lan_obj()
         installer_obj = DB.Installer.save_into_db(**dict_data)
         orm.flush()
         for file in self.files:
@@ -398,9 +413,7 @@ class BonusContent(GOGDownloadable):
 
     def save_or_update(self, game):
         dict_data = self.to_dict(with_collections=False)
-        self.save_download(game)
-        orm.flush()
-        dict_data['download'] = game
+        dict_data['download'] = GOGDownloadable.get_downloadable_table(game)
         dict_data['bonus'] = DB.Bonus[game, self.bonus]
         bonuscont_obj = DB.BonusContent.save_into_db(**dict_data)
         orm.flush()
@@ -414,9 +427,9 @@ class BonusContent(GOGDownloadable):
 class LanguagePack(Installer):
     def save_or_update(self, game):
         dict_data = self.to_dict(with_collections=False)
-        self.save_download(game)
-        orm.flush()
-        dict_data['download'] = game
+        dict_data['download'] = GOGDownloadable.get_downloadable_table(game)
+        dict_data['os'] = self.__get_os_obj()
+        dict_data['language'] = self.__get_lan_obj()
         lanpack_obj = DB.LanguagePack.save_into_db(**dict_data)
         orm.flush()
         for file in self.files:
@@ -429,9 +442,9 @@ class LanguagePack(Installer):
 class Patche(Installer):
     def save_or_update(self, game):
         dict_data = self.to_dict(with_collections=False)
-        self.save_download(game)
-        orm.flush()
-        dict_data['download'] = game
+        dict_data['download'] = GOGDownloadable.get_downloadable_table(game)
+        dict_data['os'] = self.__get_os_obj()
+        dict_data['language'] = self.__get_lan_obj()
         patch_obj = DB.Patche.save_into_db(**dict_data)
         orm.flush()
         for file in self.files:
@@ -743,5 +756,5 @@ class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
 
         self.__after_save_or_update()
 
-        if DB.Game[self.id].initialized == False:
+        if DB.Game[self.id].initialized is False:
             DB.Game[self.id].initialized = True

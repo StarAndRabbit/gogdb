@@ -114,9 +114,12 @@ class GOGDownloadable(GOGBase):
         self.__totalSize = down_data['total_size']
         self.__files = list(map(lambda x: GOGFile(product_slug, x), down_data['files']))
 
-    def save_download(self, game):
-        if not orm.exists(dl for dl in DB.Download if dl.game.id == DB.Game[game]):
-            DB.Download(game=DB.GameDetail[DB.Game[game]])
+    @staticmethod
+    def get_downloadable_table(game):
+        try:
+            return DB.Download[game]
+        except:
+            return DB.Download(game=game)
 
 
 class GOGNeedNetworkMetaClass(metaclass=ABCMeta):

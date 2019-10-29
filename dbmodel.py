@@ -373,7 +373,7 @@ class BonusContent(db.Entity, BaseModel):
 
 class Language(db.Entity, BaseModel):
     code = PrimaryKey(str, auto=True)
-    name = Required(str)
+    name = Optional(str)
     localization = Set(Localization)
     patches = Set(Patche)
     installers = Set(Installer)
