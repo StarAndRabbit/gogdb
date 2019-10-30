@@ -5,6 +5,7 @@ import dateutil.parser
 from .utilities import get_id_from_url, CoroutinePool
 from . import dbmodel as DB
 from pony import orm
+from datetime import datetime
 
 
 class Rating(GOGBase):
@@ -756,5 +757,28 @@ class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
 
         self.__after_save_or_update()
 
-        if DB.Game[self.id].initialized is False:
-            DB.Game[self.id].initialized = True
+        def get_game_obj(game_id):
+            try:
+                return DB.Game[game_id]
+            except:
+                return DB.Game(id=game_id, initialized=False, invisible=False)
+        editions = list(map(get_game_obj, self.editions))
+        req_games = list(map(get_game_obj, self.requiresGames))
+        req_by_games = list(map(get_game_obj, self.requiredByGames))
+        inc_games = list(map(get_game_obj, self.includesGames))
+        inc_in_games = list(map(get_game_obj, self.includedInGames))
+        DB.GameDetail.save_into_db(**{
+            'id': self.id,
+            'editions': editions,
+            'requiresGames': req_games,
+            'requiredByGames': req_by_games,
+            'includesGames': inc_games,
+            'includedInGames': inc_in_games
+        })
+
+        # setup Game table
+        game = DB.Game[self.id]
+        game.detailCheckout = datetime.utcnow()
+        if game.initialized is False:
+            game.initialized = True
+            game.detailUpdate = datetime.utcnow()
