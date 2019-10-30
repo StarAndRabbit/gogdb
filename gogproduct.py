@@ -757,16 +757,11 @@ class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
 
         self.__after_save_or_update()
 
-        def get_game_obj(game_id):
-            try:
-                return DB.Game[game_id]
-            except:
-                return DB.Game(id=game_id, initialized=False, invisible=False)
-        editions = list(map(get_game_obj, self.editions))
-        req_games = list(map(get_game_obj, self.requiresGames))
-        req_by_games = list(map(get_game_obj, self.requiredByGames))
-        inc_games = list(map(get_game_obj, self.includesGames))
-        inc_in_games = list(map(get_game_obj, self.includedInGames))
+        editions = list(map(lambda x: DB.Game.save_into_db(**{'id':x}), self.editions))
+        req_games = list(map(lambda x: DB.Game.save_into_db(**{'id':x}), self.requiresGames))
+        req_by_games = list(map(lambda x: DB.Game.save_into_db(**{'id':x}), self.requiredByGames))
+        inc_games = list(map(lambda x: DB.Game.save_into_db(**{'id':x}), self.includesGames))
+        inc_in_games = list(map(lambda x: DB.Game.save_into_db(**{'id':x}), self.includedInGames))
         DB.GameDetail.save_into_db(**{
             'id': self.id,
             'editions': editions,
@@ -777,8 +772,10 @@ class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
         })
 
         # setup Game table
-        game = DB.Game[self.id]
-        game.detailCheckout = datetime.utcnow()
-        if game.initialized is False:
-            game.initialized = True
-            game.detailUpdate = datetime.utcnow()
+        if DB.Game[self.id].initialized is False:
+            now = datetime.utcnow()
+            DB.Game.save_into_db(**{
+                'id': self.id,
+                'initialized': True,
+                'detailCheckout': now,
+                'detailUpdate': now})

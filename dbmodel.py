@@ -15,6 +15,7 @@ db = Database()
 
 class BaseModel(object):
     oldValueDict = dict()
+    hookOperator = ['insert', 'update', 'checkout']
 
     @classmethod
     def equals(cls, a, b):
@@ -64,7 +65,9 @@ class BaseModel(object):
             obj = cls.__getitem__(pk_value)
         except:
             logger.debug(f'Insert into [{cls.__dict__["_table_"]}]')
-            return cls(**kwargs)
+            obj = cls(**kwargs)
+            obj.after_save('insert')        # hook method
+            return obj
 
         obj_dict = obj.to_dict(exclude=pk_columns, with_collections=True, related_objects=True)
         obj.oldValueDict = dict()
@@ -82,11 +85,13 @@ class BaseModel(object):
         if len(need_update) == 0:
             logger.debug(f'Nothing needs to be done in [{cls.__dict__["_table_"]}]')
             logger.debug(f'call save_into_db time usage: {time.time() - start_time}')
+            obj.after_save('checkout')          # hook method
             return obj
         else:
             obj.set(**need_update)
             logger.info(f'Update columns {[key for key in need_update.keys()]} in [{cls.__dict__["_table_"]}]')
             logger.debug(f'call save_into_db time usage: {time.time() - start_time}')
+            obj.after_save('update')            # hook method
             return obj
 
     def update(self, **kwargs):
@@ -118,10 +123,15 @@ class BaseModel(object):
                     need_update[col] = kwargs[col]
         if len(need_update) == 0:
             logger.debug(f'Nothing needs to be done in [{self.__class__.__dict__["_table_"]}]')
+            self.after_save('checkout')         # hook method
         else:
             self.set(**need_update)
             logger.debug(
                 f'Update columns {[key for key in need_update.keys()]} in [{self.__class__.__dict__["_table_"]}]')
+            self.after_save('update')           # hook method
+
+    def after_save(self, op):
+        pass
 
 
 class GameDetail(db.Entity, BaseModel):
@@ -169,6 +179,13 @@ class GameDetail(db.Entity, BaseModel):
     builds = Set('Build')
     repositorysV1 = Set('RepositoryV1')
     repositoryV2 = Optional('RepositoryV2')
+
+    def after_save(self, op):
+        if op not in self.hookOperator:
+            return
+        else:
+            if (op == 'update' or op == 'checkout') and self.id.initialized is True:
+                self.id.detailCheckout = datetime.utcnow()
 
 
 class GameLink(db.Entity, BaseModel):
@@ -614,20 +631,21 @@ class Game(db.Entity, BaseModel):
     repositoryProductV1 = Optional(RepositoryProductV1)
     repositoryProductV2 = Optional(RepositoryProductV2)
 
-    def after_insert(self):
-        change_id = ChangeRecord.dispatch_changeid(self)
-        args = [str(self.id)]
-        change_id.record(args, change_templates.prod_add)
-
-    def after_update(self):
-        if len(self.oldValueDict) != 0:
+    def after_save(self, op):
+        if op not in self.hookOperator:
+            return
+        else:
             change_id = ChangeRecord.dispatch_changeid(self)
-            for key in self.oldValueDict.keys():
+            if op == 'insert':
                 args = [str(self.id)]
-                if key == 'initialized' and self.oldValueDict[key] is False:
-                    change_id.record(args, change_templates.prod_init)
-                elif key == 'invisible' and self.oldValueDict[key] is False:
-                    change_id.record(args, change_templates.prod_invs)
+                change_id.record(args, change_templates.prod_add)
+            elif op == 'update':
+                for key in self.oldValueDict.keys():
+                    args = [str(self.id)]
+                    if key == 'initialized' and self.oldValueDict[key] is False:
+                        change_id.record(args, change_templates.prod_init)
+                    elif key == 'invisible' and self.oldValueDict[key] is False:
+                        change_id.record(args, change_templates.prod_invs)
 
 
 class Country(db.Entity, BaseModel):
