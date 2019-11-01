@@ -649,12 +649,11 @@ class Game(db.Entity, BaseModel):
 
 
 class Country(db.Entity, BaseModel):
-    code = Required(str)
+    code = PrimaryKey(str, auto=True)
     name = Required(str)
-    priority = Required(int)
+    priority = Required(int, default=0, unsigned=True)
     finalPriceRecord = Set(FinalPriceRecord)
     price = Set(Price)
-    PrimaryKey(code, priority)
 
 
 class FormatTemplate(db.Entity, BaseModel):
