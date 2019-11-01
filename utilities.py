@@ -157,7 +157,9 @@ class Response:
 class Requester:
     def __init__(self, retries: int = 5):
         self.__retries = retries
-        self.__ua = UserAgent().random
+
+        self.__ua = UserAgent(fallback='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 '+ \
+                                       '(KHTML, like Gecko) Chrome/41.0.2227.1 Safari/537.36').random
         self.__headers = {'User-Agent': self.__ua}
         self.__logger = logging.getLogger('GOGDB.Requester')
 
