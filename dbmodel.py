@@ -248,6 +248,22 @@ class Price(db.Entity, BaseModel):
     priority = Required(int, default=0)
     PrimaryKey(game, country, currency)
 
+    def after_save(self, op):
+        if op not in self.hookOperator:
+            return
+        else:
+            now = datetime.utcnow()
+            if op == 'checkout':
+                self.game.id.priceCheckout = now
+            elif op == 'insert':
+                self.game.id.priceCheckout = now
+                self.game.id.priceUpdate = now
+                if self.currency == 'USD':
+                    FinalPriceRecord(game=self.game, country=self.country, dateTime=now, finalPrice=self.finalPrice)
+            elif op == 'update':
+                self.game.id.priceCheckout = now
+                self.game.id.priceUpdate = now
+
 
 class Localization(db.Entity, BaseModel):
     language = Required('Language')

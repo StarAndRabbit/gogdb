@@ -1,5 +1,54 @@
 from .gogapi import gogapi
 from .gogbase import GOGBase, GOGNeedNetworkMetaClass
+from . import dbmodel as DB
+
+
+class Country(GOGBase):
+    def __init__(self, country_data):
+        self.__code = country_data['code']
+        self.__name = country_data['name']
+        self.__priority = 0
+
+    @property
+    def code(self):
+        return self.__code
+
+    @property
+    def name(self):
+        return self.__name
+
+    @property
+    def priority(self):
+        return self.__priority
+
+    def save_or_update(self):
+        try:
+            return DB.Country[self.code]
+        except:
+            return DB.Country(code=self.code, name=self.name, priority=self.priority)
+
+
+class Countries(GOGBase, GOGNeedNetworkMetaClass):
+    def __init__(self, countries_data):
+        self.__countries = list()
+        for country_data in countries_data:
+            self.__countries.append(Country(country_data))
+
+    @classmethod
+    async def create(cls):
+        countries_data = await gogapi.get_countries()
+        return Countries(countries_data)
+
+    @classmethod
+    async def create_multi(cls, *args):
+        pass
+
+    @property
+    def countries(self):
+        return self.__countries
+
+    def save_or_update(self):
+        return list(map(lambda x: x.save_or_update(), self.countries))
 
 
 class SignalPrice(GOGBase):
@@ -35,6 +84,9 @@ class SignalPrice(GOGBase):
         self.__basePrice = basePrice
         self.__finalPrice = finalPrice
         self.__priority = priority
+
+    def save_or_update(self):
+        return DB.Price.save_into_db(**self.to_dict())
 
 
 class GOGPrice(GOGBase, GOGNeedNetworkMetaClass):
@@ -75,3 +127,6 @@ class GOGPrice(GOGBase, GOGNeedNetworkMetaClass):
     @property
     def prices(self):
         return self.__prices
+
+    def save_or_update(self):
+        return list(map(lambda x: x.save_or_update(), self.prices))
