@@ -468,7 +468,7 @@ class Slug(db.Entity, BaseModel):
 
 
 class AchivevmentsTable(db.Entity, BaseModel):
-    game = Required(GameDetail)
+    game = PrimaryKey(GameDetail)
     totalCount = Required(int, default=0)
     mode = Optional(str)
     achievements = Set('Achievement')
