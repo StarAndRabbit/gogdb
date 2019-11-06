@@ -569,13 +569,14 @@ class RepositoryProductDependency(db.Entity, BaseModel):
 
 
 class SupportCommand(db.Entity, BaseModel):
-    id = PrimaryKey(int, auto=True)
+    id = Required(int)
     product = Required(RepositoryProductV1)
     languages = Set(Language)
     argument = Optional(str)
     systems = Set(OS)
     executable = Optional(str)
     repositoryV1 = Required(RepositoryV1)
+    PrimaryKey(id, repositoryV1)
 
 
 class Redistributable(db.Entity, BaseModel):
