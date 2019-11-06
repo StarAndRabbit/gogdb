@@ -4,6 +4,24 @@ from .utilities import CoroutinePool, Requester
 import zlib
 import dateutil.parser
 import json
+from . import dbmodel as DB
+from pony import orm
+
+
+def get_lan_obj(name):
+    if name == 'Neutral':
+        name = '*'
+    if orm.exists(lan for lan in DB.Language if lan.name == name.strip()):
+        return orm.get(lan for lan in DB.Language if lan.name == name.strip())
+    else:
+        return DB.Language(code=name, name=name)
+
+
+def get_os_obj(pk):
+    try:
+        return DB.OS[pk]
+    except:
+        return DB.OS(name=pk)
 
 
 class RepoProductV1(GOGBase):
@@ -24,6 +42,19 @@ class RepoProductV1(GOGBase):
     @property
     def dependencies(self):
         return self.__dependencies
+
+    def save_or_update(self):
+        deps = list()
+        if self.dependencies is not None:
+            for idx in range(len(self.dependencies)):
+                dep = self.dependencies[idx]
+                if orm.exists(d for d in DB.RepositoryProductDependency if d.name == dep.strip()):
+                    deps.append(orm.get(d for d in DB.RepositoryProductDependency if d.name == dep.strip()))
+                else:
+                    deps.append(DB.RepositoryProductDependency(name=dep.strip()))
+        dict_data = self.to_dict()
+        dict_data['dependencies'] = deps
+        return DB.RepositoryProductV1.save_into_db(**dict_data)
 
 
 class SupportCommands(GOGBase):
@@ -55,6 +86,16 @@ class SupportCommands(GOGBase):
     def executable(self):
         return self.__executable
 
+    def save_or_update(self, idx, repov1):
+        dict_data = self.to_dict()
+        dict_data['id'] = idx
+        dict_data['product'] = DB.RepositoryProductV1[self.product]
+        dict_data['repositoryV1'] = repov1
+        dict_data['languages'] = list(map(get_lan_obj, dict_data['languages']))
+        dict_data['systems'] = list(map(get_os_obj, dict_data['systems']))
+
+        return DB.SupportCommand.save_into_db(**dict_data)
+
 
 class Redistributable(GOGBase):
 
@@ -74,6 +115,14 @@ class Redistributable(GOGBase):
     @property
     def argument(self):
         return self.__argument
+
+    def save_or_update(self):
+        try:
+            return DB.Redistributable[self.redist.strip()]
+        except:
+            return DB.Redistributable(redist=self.redist.strip(),
+                                      executable=self.executable.strip() if self.executable is not None else '',
+                                      argument=self.argument.strip() if self.executable is not None else '')
 
 
 class DepotV1(GOGBase):
@@ -105,6 +154,14 @@ class DepotV1(GOGBase):
     def size(self):
         return self.__size
 
+    def save_or_update(self, repov1):
+        dict_data = self.to_dict()
+        dict_data['repositoryV1'] = repov1
+        dict_data['languages'] = list(map(get_lan_obj, dict_data['languages']))
+        dict_data['systems'] = list(map(get_os_obj, dict_data['systems']))
+        dict_data['products'] = list(map(lambda x: DB.RepositoryProductV1[x], self.products))
+        return DB.DepotV1.save_into_db(**dict_data)
+
 
 class RepoV1(GOGBase):
 
@@ -131,7 +188,7 @@ class RepoV1(GOGBase):
         return self.__rootGame
 
     @property
-    def timeStamp(self):
+    def timestamp(self):
         return self.__timestamp
 
     @property
@@ -157,6 +214,32 @@ class RepoV1(GOGBase):
     @property
     def depots(self):
         return self.__depots
+
+    def __before_save_or_update(self):
+        repo_prods_v1 = list(map(lambda x: x.save_or_update(), self.products))
+        redists = list(map(lambda x: x.save_or_update(), self.redistributables))
+        return {
+            "products": repo_prods_v1,
+            "redistributables": redists
+        }
+
+    def __after_save_or_update(self, repov1_db_obj):
+        def gen_supcmd(supcmd_data):
+            idx, supcmd_obj = supcmd_data
+            return supcmd_obj.save_or_update(idx, repov1_db_obj)
+        list(map(gen_supcmd, enumerate(self.supportCommands)))
+        list(map(lambda x: x.save_or_update(repov1_db_obj), self.depots))
+
+    def save_or_update(self, build):
+        ext_data = self.__before_save_or_update()
+        dict_data = self.to_dict(with_collections=False)
+        dict_data['rootGame'] = DB.GameDetail[self.rootGame]
+        dict_data['build'] = build
+        dict_data['products'] = ext_data['products']
+        dict_data['redistributables'] = ext_data['redistributables']
+        repov1 = DB.RepositoryV1.save_into_db(**dict_data)
+        self.__after_save_or_update(repov1)
+        return repov1
 
 
 class RepoProductV2(GOGBase):
@@ -394,6 +477,14 @@ class Build(GOGBase, GOGNeedNetworkMetaClass):
     def repositoryV2(self):
         return self.__repo_v2
 
+    def save_or_update(self):
+        dict_data = self.to_dict(with_collections=False)
+        dict_data['product'] = DB.GameDetail[self.product]
+        build_obj = DB.Build.save_into_db(**dict_data)
+        if self.repositoryV1 is not None:
+            self.repositoryV1.save_or_update(build_obj)
+        return build_obj
+
 
 class BuildsTable(GOGBase, GOGNeedNetworkMetaClass):
 
@@ -427,3 +518,6 @@ class BuildsTable(GOGBase, GOGNeedNetworkMetaClass):
     @property
     def product(self):
         return self.__prod_id
+
+    def save_or_update(self):
+        return list(map(lambda x: x.save_or_update(), self.builds))
