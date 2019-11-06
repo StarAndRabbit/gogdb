@@ -558,7 +558,7 @@ class RepositoryProductV1(db.Entity, BaseModel):
     standalone = Optional(bool)
     dependencies = Set('RepositoryProductDependency')
     repositoryV1 = Set(RepositoryV1)
-    supportCommand = Optional('SupportCommand')
+    supportCommands = Set('SupportCommand')
     depotsV1 = Set('DepotV1')
 
 
