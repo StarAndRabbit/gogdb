@@ -8,13 +8,19 @@ from . import dbmodel as DB
 from pony import orm
 
 
-def get_lan_obj(name):
-    if name == 'Neutral':
-        name = '*'
-    if orm.exists(lan for lan in DB.Language if lan.name == name.strip()):
-        return orm.get(lan for lan in DB.Language if lan.name == name.strip())
-    else:
-        return DB.Language(code=name, name=name)
+def get_lan_obj(name, gen):
+    if gen == 1:
+        if name == 'Neutral':
+            name = '*'
+        if orm.exists(lan for lan in DB.Language if lan.name == name.strip()):
+            return orm.get(lan for lan in DB.Language if lan.name == name.strip())
+        else:
+            return DB.Language(code=name, name=name)
+    elif gen == 2:
+        try:
+            return DB.Language[name]
+        except:
+            return DB.Language(code=name)
 
 
 def get_os_obj(pk):
@@ -91,7 +97,7 @@ class SupportCommands(GOGBase):
         dict_data['id'] = idx
         dict_data['product'] = DB.RepositoryProductV1[self.product]
         dict_data['repositoryV1'] = repov1
-        dict_data['languages'] = list(map(get_lan_obj, dict_data['languages']))
+        dict_data['languages'] = list(map(lambda x: get_lan_obj(x, 1), dict_data['languages']))
         dict_data['systems'] = list(map(get_os_obj, dict_data['systems']))
 
         return DB.SupportCommand.save_into_db(**dict_data)
@@ -101,28 +107,28 @@ class Redistributable(GOGBase):
 
     def __init__(self, repo_redist_data):
         self.__redist = repo_redist_data.get('redist')
-        self.__executable = repo_redist_data.get('executable')
-        self.__argument = repo_redist_data.get('argument')
+        self.__executable = repo_redist_data.get('executable', '')
+        self.__argument = repo_redist_data.get('argument', '')
 
     @property
     def redist(self):
-        return self.__redist
+        return self.__redist.strip()
 
     @property
     def executable(self):
-        return self.__executable
+        return self.__executable.strip()
 
     @property
     def argument(self):
-        return self.__argument
+        return self.__argument.strip()
 
     def save_or_update(self):
         try:
-            return DB.Redistributable[self.redist.strip()]
+            return DB.Redistributable[self.redist]
         except:
-            return DB.Redistributable(redist=self.redist.strip(),
-                                      executable=self.executable.strip() if self.executable is not None else '',
-                                      argument=self.argument.strip() if self.executable is not None else '')
+            return DB.Redistributable(redist=self.redist,
+                                      executable=self.executable,
+                                      argument=self.argument)
 
 
 class DepotV1(GOGBase):
@@ -157,7 +163,7 @@ class DepotV1(GOGBase):
     def save_or_update(self, repov1):
         dict_data = self.to_dict()
         dict_data['repositoryV1'] = repov1
-        dict_data['languages'] = list(map(get_lan_obj, dict_data['languages']))
+        dict_data['languages'] = list(map(lambda x: get_lan_obj(x, 1), dict_data['languages']))
         dict_data['systems'] = list(map(get_os_obj, dict_data['systems']))
         dict_data['products'] = list(map(lambda x: DB.RepositoryProductV1[x], self.products))
         return DB.DepotV1.save_into_db(**dict_data)
@@ -266,6 +272,9 @@ class RepoProductV2(GOGBase):
     def tempExecutable(self):
         return self.__temp_exec
 
+    def save_or_update(self):
+        return DB.RepositoryProductV2.save_into_db(**self.to_dict())
+
 
 class CloudSave(GOGBase):
 
@@ -281,6 +290,9 @@ class CloudSave(GOGBase):
     def name(self):
         return self.__name
 
+    def save_or_update(self):
+        return DB.CloudSave.save_into_db(**self.to_dict())
+
 
 class DepotV2(GOGBase):
 
@@ -289,6 +301,7 @@ class DepotV2(GOGBase):
         self.__comp_size = depot_data.get('compressedSize')
         self.__prod_id = depot_data.get('productId')
         self.__languages = depot_data.get('languages')
+        self.__languages = list(map(lambda x: x.split('-')[0], self.__languages))
         self.__size = depot_data.get('size')
         self.__is_offline = isOffline
 
@@ -301,7 +314,7 @@ class DepotV2(GOGBase):
         return self.__comp_size
 
     @property
-    def product(self):
+    def productId(self):
         return self.__prod_id
 
     @property
@@ -316,6 +329,12 @@ class DepotV2(GOGBase):
     def isOffline(self):
         return self.__is_offline
 
+    def save_or_update(self, repo_v2):
+        dict_data = self.to_dict()
+        dict_data['repositoryV2'] = repo_v2
+        dict_data['languages'] = list(map(lambda x: get_lan_obj(x, 2), self.languages))
+        return DB.DepotV2.save_into_db(**dict_data)
+
 
 class RepoV2(GOGBase):
 
@@ -325,8 +344,8 @@ class RepoV2(GOGBase):
         self.__client_secret = repo_data.get('clientSecret')
         self.__install_dir = repo_data.get('installDirectory')
         self.__platform = repo_data.get('platform')
-        self.__tags = repo_data.get('tags')
-        self.__dependencies = repo_data.get('dependencies')
+        self.__tags = repo_data.get('tags', '')
+        self.__dependencies = repo_data.get('dependencies', [])
         self.__products = list(map(lambda x: RepoProductV2(x), repo_data.get('products', [])))
         self.__depots = list(map(lambda x: DepotV2(x), repo_data.get('depots', [])))
         if 'manifest' in repo_data.get('offlineDepot', dict()):
@@ -372,6 +391,39 @@ class RepoV2(GOGBase):
     @property
     def cloudSaves(self):
         return self.__cloud_saves
+
+    def __before_save_or_update(self):
+        repo_prods_v2 = list(map(lambda x: x.save_or_update(), self.products))
+        cloud_saves = list(map(lambda x: x.save_or_update(), self.cloudSaves))
+        def get_dep(dep):
+            try:
+                return DB.Dependency[dep]
+            except:
+                return DB.Dependency(name=dep)
+        deps = list(map(get_dep, self.dependencies))
+
+        return {
+            "products": repo_prods_v2,
+            "cloudSaves": cloud_saves,
+            "dependencies": deps
+        }
+
+    def __after_save_or_update(self, repo_db_obj):
+        list(map(lambda x: x.save_or_update(repo_db_obj), self.depots))
+
+    def save_or_update(self, build_db_obj):
+        ext_data = self.__before_save_or_update()
+        dict_data = self.to_dict(with_collections=False)
+        dict_data['baseProduct'] = DB.GameDetail[self.baseProduct]
+        dict_data['baseProduct'].clientId = self.clientId
+        dict_data['baseProduct'].clientSecret = self.clientSecret
+        dict_data['build'] = build_db_obj
+        dict_data['products'] = ext_data['products']
+        dict_data['dependencies'] = ext_data['dependencies']
+        dict_data['cloudSaves'] = ext_data['cloudSaves']
+        repo_db_obj = DB.RepositoryV2.save_into_db(**dict_data)
+        self.__after_save_or_update(repo_db_obj)
+        return repo_db_obj
 
 
 class Build(GOGBase, GOGNeedNetworkMetaClass):
@@ -483,6 +535,8 @@ class Build(GOGBase, GOGNeedNetworkMetaClass):
         build_obj = DB.Build.save_into_db(**dict_data)
         if self.repositoryV1 is not None:
             self.repositoryV1.save_or_update(build_obj)
+        elif self.repositoryV2 is not None:
+            self.repositoryV2.save_or_update(build_obj)
         return build_obj
 
 
