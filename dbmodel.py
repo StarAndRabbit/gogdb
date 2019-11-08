@@ -596,8 +596,7 @@ class DepotV1(db.Entity, BaseModel):
 
 
 class RepositoryProductV2(db.Entity, BaseModel):
-    id = PrimaryKey(int, auto=True)
-    product = Required('Game')
+    product = PrimaryKey('Game')
     script = Optional(str)
     tempArguments = Optional(str)
     tempExecutable = Optional(str)
@@ -606,10 +605,10 @@ class RepositoryProductV2(db.Entity, BaseModel):
 
 class DepotV2(db.Entity, BaseModel):
     manifest = PrimaryKey(str)
-    compressedSize = Required(int)
+    compressedSize = Required(int, size=64)
     languages = Set(Language)
     productId = Required(str)
-    size = Required(int)
+    size = Required(int, size=64)
     isOffline = Required(bool)
     repositoryV2 = Required(RepositoryV2)
 
