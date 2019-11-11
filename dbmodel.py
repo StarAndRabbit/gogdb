@@ -178,7 +178,7 @@ class GameDetail(db.Entity, BaseModel):
     achivevmentsTable = Optional('AchivevmentsTable')
     builds = Set('Build')
     repositorysV1 = Set('RepositoryV1')
-    repositoryV2 = Optional('RepositoryV2')
+    repositoryV2 = Set('RepositoryV2')
 
     def after_save(self, op):
         if op not in self.hookOperator:
