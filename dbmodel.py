@@ -138,8 +138,7 @@ class GameDetail(db.Entity, BaseModel):
     id = PrimaryKey('Game', reverse='detail')
     title = Required(str)
     slug = Required('Slug')
-    clientId = Optional(str)
-    clientSecret = Optional(str)
+    defaultClientInfo = Set('DefaultClientInfo')
     inDevelopment = Required(bool)
     isUsingDosBox = Required(bool)
     isAvailableForSale = Required(bool)
@@ -212,6 +211,7 @@ class OS(db.Entity, BaseModel):
     supportCommands = Set('SupportCommand')
     depotsV1 = Set('DepotV1')
     repositorysV2 = Set('RepositoryV2')
+    defaultClientInfo = Set('DefaultClientInfo')
 
 
 class Publisher(db.Entity, BaseModel):
@@ -711,3 +711,11 @@ class AverageRating(db.Entity, BaseModel):
     game = PrimaryKey(GameDetail)
     rating = Required(Decimal)
     count = Required(int)
+
+
+class DefaultClientInfo(db.Entity, BaseModel):
+    clientId = Required(str)
+    clientSecret = Optional(str)
+    platform = Required(OS)
+    game = Required(GameDetail)
+    PrimaryKey(clientId, platform)

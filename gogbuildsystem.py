@@ -415,8 +415,6 @@ class RepoV2(GOGBase):
         ext_data = self.__before_save_or_update()
         dict_data = self.to_dict(with_collections=False)
         dict_data['baseProduct'] = DB.GameDetail[self.baseProduct]
-        dict_data['baseProduct'].clientId = self.clientId
-        dict_data['baseProduct'].clientSecret = self.clientSecret
         dict_data['build'] = build_db_obj
         dict_data['products'] = ext_data['products']
         dict_data['dependencies'] = ext_data['dependencies']
