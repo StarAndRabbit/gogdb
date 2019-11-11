@@ -238,6 +238,15 @@ class FinalPriceRecord(db.Entity, BaseModel):
     finalPrice = Optional(Decimal)
     PrimaryKey(game, country, dateTime)
 
+    def after_save(self, op):
+        if op not in self.hookOperator:
+            return
+        else:
+            now = datetime.utcnow()
+            self.game.id.finalPriceCheckout = now
+            if op == 'insert':
+                self.game.id.finalPriceUpdate = now
+
 
 class Price(db.Entity, BaseModel):
     game = Required(GameDetail)
@@ -253,16 +262,25 @@ class Price(db.Entity, BaseModel):
             return
         else:
             now = datetime.utcnow()
-            if op == 'checkout':
-                self.game.id.priceCheckout = now
-            elif op == 'insert':
-                self.game.id.priceCheckout = now
+            self.game.id.priceCheckout = now
+            if op == 'insert':
                 self.game.id.priceUpdate = now
                 if self.currency == 'USD':
-                    FinalPriceRecord(game=self.game, country=self.country, dateTime=now, finalPrice=self.finalPrice)
+                    FinalPriceRecord.save_into_db(**{
+                        'game': self.game,
+                        'country': self.country,
+                        'dateTime': now,
+                        'finalPrice': self.finalPrice
+                    })
             elif op == 'update':
-                self.game.id.priceCheckout = now
                 self.game.id.priceUpdate = now
+                if self.currency == 'USD' and 'finalPrice' in self.oldValueDict:
+                    FinalPriceRecord.save_into_db(**{
+                        'game': self.game,
+                        'country': self.country,
+                        'dateTime': now,
+                        'finalPrice': self.finalPrice
+                    })
 
 
 class Localization(db.Entity, BaseModel):
@@ -517,6 +535,15 @@ class Build(db.Entity, BaseModel):
     isDefault = Required(bool)  # Is the lastest version in this game
     repositoryV1 = Optional('RepositoryV1')
     repositoryV2 = Optional('RepositoryV2')
+
+    def after_save(self, op):
+        if op not in self.hookOperator:
+            return
+        else:
+            now = datetime.utcnow()
+            self.product.id.buildsCheckout = now
+            if op == 'insert':
+                self.product.id.buildsUpdate = now
 
 
 class BuildTag(db.Entity, BaseModel):
