@@ -579,6 +579,19 @@ class RepositoryV2(db.Entity, BaseModel):
     dependencies = Set('Dependency')
     cloudSaves = Set('CloudSave')
 
+    def after_save(self, op):
+        if op not in self.hookOperator:
+            return
+        else:
+            if op == 'insert':
+                if self.build.isDefault is True:
+                    DefaultClientInfo.save_into_db(**{
+                        'game': self.build.product,
+                        'platform': self.platform,
+                        'clientId': self.clientId,
+                        'clientSecret': self.clientSecret
+                    })
+
 
 class RepositoryProductV1(db.Entity, BaseModel):
     game = PrimaryKey('Game')
@@ -714,8 +727,8 @@ class AverageRating(db.Entity, BaseModel):
 
 
 class DefaultClientInfo(db.Entity, BaseModel):
-    clientId = Required(str)
-    clientSecret = Optional(str)
-    platform = Required(OS)
     game = Required(GameDetail)
-    PrimaryKey(clientId, platform)
+    platform = Required(OS)
+    clientId = Required(str)
+    clientSecret = Required(str)
+    PrimaryKey(game, platform)
