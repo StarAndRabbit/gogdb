@@ -174,7 +174,6 @@ class GameDetail(db.Entity, BaseModel):
     series = Optional('Series')
     downloads = Optional('Download')
     bonuses = Set('Bonus')
-    achivevmentsTable = Optional('AchivevmentsTable')
     builds = Set('Build')
     repositorysV1 = Set('RepositoryV1')
     repositoryV2 = Set('RepositoryV2')
@@ -383,19 +382,19 @@ class Installer(db.Entity, BaseModel):
     language = Required('Language')
     os = Required(OS)
     version = Optional(str)
-    totalSize = Optional(int)
+    totalSize = Optional(int, size=64)
     installerFiles = Set('InstallerFile')
     PrimaryKey(id, download)
 
 
 class Patche(db.Entity, BaseModel):
-    id = Required(int)
+    id = Required(str)
     download = Required(Download)
     name = Required(str)
     language = Required('Language')
     os = Required(OS)
     version = Optional(str)
-    totalSize = Required(int)
+    totalSize = Required(int, size=64)
     patcheFiles = Set('PatcheFile')
     PrimaryKey(id, download)
 
@@ -407,7 +406,7 @@ class LanguagePack(db.Entity, BaseModel):
     language = Required('Language')
     os = Required(OS)
     version = Optional(str)
-    totalSize = Required(int)
+    totalSize = Required(int, size=64)
     languagePackFiles = Set('LanguagePackFile')
     PrimaryKey(id, download)
 
@@ -417,7 +416,7 @@ class BonusContent(db.Entity, BaseModel):
     download = Required(Download)
     bonus = Required('Bonus')
     count = Required(int)
-    totalSize = Required(int)
+    totalSize = Required(int, size=64)
     bonusFiles = Set('BonusFile')
     PrimaryKey(id, download)
 
@@ -437,7 +436,7 @@ class Language(db.Entity, BaseModel):
 class BonusFile(db.Entity, BaseModel):
     id = Required(int)
     bonusContent = Required(BonusContent)
-    size = Required(int)
+    size = Required(int, size=64)
     downlink = Required(str)
     PrimaryKey(id, bonusContent)
 
@@ -445,7 +444,7 @@ class BonusFile(db.Entity, BaseModel):
 class InstallerFile(db.Entity, BaseModel):
     id = Required(str)
     installer = Required(Installer)
-    size = Required(int)
+    size = Required(int, size=64)
     downlink = Required(str)
     PrimaryKey(id, installer)
 
@@ -467,7 +466,7 @@ class Bonus(db.Entity, BaseModel):
 class PatcheFile(db.Entity, BaseModel):
     id = Required(str)
     patche = Required(Patche)
-    size = Required(int)
+    size = Required(int, size=64)
     downlink = Required(str)
     PrimaryKey(id, patche)
 
@@ -475,7 +474,7 @@ class PatcheFile(db.Entity, BaseModel):
 class LanguagePackFile(db.Entity, BaseModel):
     id = Required(str)
     languagePack = Required(LanguagePack)
-    size = Required(int)
+    size = Required(int, size=64)
     downlink = Required(str)
     PrimaryKey(id, languagePack)
 
@@ -485,8 +484,8 @@ class Slug(db.Entity, BaseModel):
     games = Set(GameDetail)
 
 
-class AchivevmentsTable(db.Entity, BaseModel):
-    game = PrimaryKey(GameDetail)
+class AchievementsTable(db.Entity, BaseModel):
+    defaultClientInfo = PrimaryKey('DefaultClientInfo')
     totalCount = Required(int, default=0)
     mode = Optional(str)
     achievements = Set('Achievement')
@@ -502,7 +501,7 @@ class Achievement(db.Entity, BaseModel):
     imageUrlLocked = Required(str)
     rarity = Required(Decimal)
     achievementRarityLevel = Required('AchievementRarityLevel')
-    achivevmentsTable = Required(AchivevmentsTable)
+    achievementsTable = Set(AchievementsTable)
 
 
 class AchievementRarityLevel(db.Entity, BaseModel):
@@ -731,4 +730,5 @@ class DefaultClientInfo(db.Entity, BaseModel):
     platform = Required(OS)
     clientId = Required(str)
     clientSecret = Required(str)
+    achievementsTable = Optional(AchievementsTable)
     PrimaryKey(game, platform)
