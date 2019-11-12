@@ -367,13 +367,13 @@ class Installer(GOGDownloadable):
         self.__version = '' if installer_data['version'] is None else installer_data['version'].strip()
         super().__init__(product_slug, installer_data)
 
-    def __get_os_obj(self):
+    def get_os_obj(self):
         try:
             return DB.OS[self.os]
         except:
             return DB.OS(name=self.os)
 
-    def __get_lan_obj(self):
+    def get_lan_obj(self):
         try:
             return DB.Language[self.language]
         except:
@@ -382,8 +382,8 @@ class Installer(GOGDownloadable):
     def save_or_update(self, game):
         dict_data = self.to_dict(with_collections=False)
         dict_data['download'] = GOGDownloadable.get_downloadable_table(game)
-        dict_data['os'] = self.__get_os_obj()
-        dict_data['language'] = self.__get_lan_obj()
+        dict_data['os'] = self.get_os_obj()
+        dict_data['language'] = self.get_lan_obj()
         installer_obj = DB.Installer.save_into_db(**dict_data)
         orm.flush()
         for file in self.files:
@@ -429,13 +429,13 @@ class LanguagePack(Installer):
     def save_or_update(self, game):
         dict_data = self.to_dict(with_collections=False)
         dict_data['download'] = GOGDownloadable.get_downloadable_table(game)
-        dict_data['os'] = self.__get_os_obj()
-        dict_data['language'] = self.__get_lan_obj()
+        dict_data['os'] = self.get_os_obj()
+        dict_data['language'] = self.get_lan_obj()
         lanpack_obj = DB.LanguagePack.save_into_db(**dict_data)
         orm.flush()
         for file in self.files:
             file_dict_data = file.to_dict()
-            file_dict_data['bonusContent'] = lanpack_obj
+            file_dict_data['languagePack'] = lanpack_obj
             DB.LanguagePackFile.save_into_db(**file_dict_data)
         return lanpack_obj
 
@@ -444,13 +444,13 @@ class Patche(Installer):
     def save_or_update(self, game):
         dict_data = self.to_dict(with_collections=False)
         dict_data['download'] = GOGDownloadable.get_downloadable_table(game)
-        dict_data['os'] = self.__get_os_obj()
-        dict_data['language'] = self.__get_lan_obj()
+        dict_data['os'] = self.get_os_obj()
+        dict_data['language'] = self.get_lan_obj()
         patch_obj = DB.Patche.save_into_db(**dict_data)
         orm.flush()
         for file in self.files:
             file_dict_data = file.to_dict()
-            file_dict_data['bonusContent'] = patch_obj
+            file_dict_data['patche'] = patch_obj
             DB.PatcheFile.save_into_db(**file_dict_data)
         return patch_obj
 
