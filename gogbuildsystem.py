@@ -332,9 +332,8 @@ class DepotV2(GOGBase):
     def isOffline(self):
         return self.__is_offline
 
-    def save_or_update(self, repo_v2):
+    def save_or_update(self):
         dict_data = self.to_dict()
-        dict_data['repositoryV2'] = repo_v2
         dict_data['languages'] = list(map(lambda x: get_lan_obj(x, 2), self.languages))
         return DB.DepotV2.save_into_db(**dict_data)
 
@@ -411,15 +410,14 @@ class RepoV2(GOGBase):
             except:
                 return DB.Dependency(name=dep)
         deps = list(map(get_dep, self.dependencies))
+        depots = list(map(lambda x: x.save_or_update(), self.depots))
 
         return {
             "products": repo_prods_v2,
             "cloudSaves": cloud_saves,
-            "dependencies": deps
+            "dependencies": deps,
+            "depots": depots
         }
-
-    def __after_save_or_update(self, repo_db_obj):
-        list(map(lambda x: x.save_or_update(repo_db_obj), self.depots))
 
     def save_or_update(self, build_db_obj):
         ext_data = self.__before_save_or_update()
@@ -429,8 +427,8 @@ class RepoV2(GOGBase):
         dict_data['products'] = ext_data['products']
         dict_data['dependencies'] = ext_data['dependencies']
         dict_data['cloudSaves'] = ext_data['cloudSaves']
+        dict_data['depots'] = ext_data['depots']
         repo_db_obj = DB.RepositoryV2.save_into_db(**dict_data)
-        self.__after_save_or_update(repo_db_obj)
         return repo_db_obj
 
 

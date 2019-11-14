@@ -649,7 +649,7 @@ class DepotV2(db.Entity, BaseModel):
     productId = Required(str)
     size = Required(int, size=64)
     isOffline = Required(bool)
-    repositoryV2 = Required(RepositoryV2)
+    repositoryV2 = Set(RepositoryV2)
 
 
 class Dependency(db.Entity, BaseModel):
