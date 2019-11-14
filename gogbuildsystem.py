@@ -9,9 +9,12 @@ from pony import orm
 
 
 def get_lan_obj(name, gen):
+    if name == 'Neutral' or name == '*':
+        try:
+            return DB.Language['*']
+        except:
+            return DB.Language(code='*', name='*')
     if gen == 1:
-        if name == 'Neutral':
-            name = '*'
         if orm.exists(lan for lan in DB.Language if lan.name == name.strip()):
             return orm.get(lan for lan in DB.Language if lan.name == name.strip())
         else:
