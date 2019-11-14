@@ -246,7 +246,7 @@ class API:
 
     async def get_extend_detail(self, product_id):
         url = f"{self.__hosts['extend_detail']}/{product_id}"
-        params = {'expand': 'downloads'}
+        params = {'expand': 'downloads', 'locale': 'en-US'}
 
         self.__logger.info(f"Call {func_name()} id={product_id}")
 

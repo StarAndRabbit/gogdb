@@ -15,6 +15,10 @@ import inspect
 import asyncio
 
 
+fake_ua = UserAgent(fallback='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 '+ \
+                                       '(KHTML, like Gecko) Chrome/41.0.2227.1 Safari/537.36').random
+
+
 class CoroutinePool:
     """ use this class to limit coroutine concurrency """
     def __init__(self, concurrency: int=16, coro_list: list=[]):
@@ -158,8 +162,7 @@ class Requester:
     def __init__(self, retries: int = 5):
         self.__retries = retries
 
-        self.__ua = UserAgent(fallback='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 '+ \
-                                       '(KHTML, like Gecko) Chrome/41.0.2227.1 Safari/537.36').random
+        self.__ua = fake_ua
         self.__headers = {'User-Agent': self.__ua}
         self.__logger = logging.getLogger('GOGDB.Requester')
 
