@@ -350,7 +350,14 @@ class RepoV2(GOGBase):
         self.__tags = repo_data.get('tags', '')
         self.__dependencies = repo_data.get('dependencies', [])
         self.__products = list(map(lambda x: RepoProductV2(x), repo_data.get('products', [])))
-        self.__depots = list(map(lambda x: DepotV2(x), repo_data.get('depots', [])))
+        self.__depots_unmerged = list(map(lambda x: DepotV2(x), repo_data.get('depots', [])))
+        # merge
+        self.__depots = list()
+        manifest_list = list()
+        for depots in self.__depots_unmerged:
+            if depots.manifest not in manifest_list:
+                self.__depots.append(depots)
+                manifest_list.append(depots.manifest)
         if 'manifest' in repo_data.get('offlineDepot', dict()):
             self.__depots.append(DepotV2(repo_data.get('offlineDepot'), True))
         self.__cloud_saves = list(map(lambda x: CloudSave(x), repo_data.get('cloudSaves', [])))
