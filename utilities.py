@@ -262,14 +262,6 @@ def exception_wrap(exp: Exception):
         return exp_map_table[exp.__class__](exp)
 
 
-def func_name():
-    call_stack = inspect.stack()
-    if len(call_stack) < 3:
-        return ''
-    else:
-        return call_stack[1].function
-
-
 def get_id_from_url(url):
     t = re.findall(r'\d+', url)
     if t:

@@ -3,7 +3,6 @@ from decimal import Decimal
 from pony.orm import *
 from .gogexceptions import NeedPrimaryKey
 import logging
-from .utilities import func_name
 from hashlib import sha256
 from .changetemplate import change_templates
 import time
@@ -43,7 +42,6 @@ class BaseModel(object):
     @classmethod
     def save_into_db(cls, **kwargs):
         logger = logging.getLogger('GOGDB.DataBase')
-        logger.debug(f'Call {cls.__dict__["_table_"]}.{func_name()}')
         start_time = time.time()
 
         # black magic to get primary key
@@ -66,10 +64,13 @@ class BaseModel(object):
         except:
             logger.debug(f'Insert into [{cls.__dict__["_table_"]}]')
             obj = cls(**kwargs)
-            obj.after_save('insert')        # hook method
+            obj.after_save('insert')        # callback method
             return obj
 
-        obj_dict = obj.to_dict(exclude=pk_columns, with_collections=True, related_objects=True)
+        obj_dict = dict()
+        for col in adict.keys():
+            if col not in pk_columns:
+                obj_dict[col] = getattr(obj, col)
         obj.oldValueDict = dict()
 
         need_update = dict()
@@ -96,7 +97,6 @@ class BaseModel(object):
 
     def update(self, **kwargs):
         logger = logging.getLogger('GOGDB.DataBase')
-        logger.debug(f'Call {self.__class__.__dict__["_table_"]}.{func_name()}')
 
         # black magic to get primary key
         pk_objs = self.__class__.__dict__['_pk_attrs_']

@@ -197,9 +197,9 @@ class Images(GOGBase):
 
     def save_or_update(self, game):
         def fmter_obj(fmter):
-            if orm.exists(fmt for fmt in DB.Formatter if fmt.formatter == fmter):
+            try:
                 return DB.Formatter[fmter]
-            else:
+            except:
                 return DB.Formatter(formatter=fmter)
         fmts = list(map(fmter_obj, self.formatters))
         dict_data = self.to_dict()
@@ -221,9 +221,9 @@ class Screenshot(Images):
 
     def save_or_update(self, game):
         def fmter_obj(fmter):
-            if orm.exists(fmt for fmt in DB.Formatter if fmt.formatter == fmter):
+            try:
                 return DB.Formatter[fmter]
-            else:
+            except:
                 return DB.Formatter(formatter=fmter)
         fmts = list(map(fmter_obj, self.formatters))
         dict_data = self.to_dict()
@@ -254,10 +254,10 @@ class VideoProvider(GOGBase):
         self.__thumbnailHref = links['thumbnail']['href'].replace(video_data['thumbnailId'], '{thumbnailId}')
 
     def save_or_update(self):
-        if not orm.exists(vp for vp in DB.VideoProvider if vp.provider == self.provider):
-            return DB.VideoProvider(**self.to_dict())
-        else:
+        try:
             return DB.VideoProvider[self.provider]
+        except:
+            return DB.VideoProvider(**self.to_dict())
 
 
 class Video(GOGBase):
@@ -306,10 +306,10 @@ class BonusType(GOGBase):
         self.__type = bonustype_data['name'].strip()
 
     def save_or_update(self):
-        if not orm.exists(bt for bt in DB.BonusType if bt.slug == self.slug):
-            return DB.BonusType(slug=self.slug, type=self.type)
-        else:
+        try:
             return DB.BonusType[self.slug]
+        except:
+            return DB.BonusType(slug=self.slug, type=self.type)
 
 
 class Bonus(GOGSimpleClass):
@@ -747,10 +747,10 @@ class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
         extra_data = self.__before_save_or_update()
         extra_data['id'] = self.id
         dict_data = self.to_dict(with_collections=False)
-        if not orm.exists(sg for sg in DB.Slug if sg.slug == self.slug):
-            dict_data['slug'] = DB.Slug(slug=self.slug)
-        else:
+        try:
             dict_data['slug'] = DB.Slug[self.slug]
+        except:
+            dict_data['slug'] = DB.Slug(slug=self.slug)
 
         DB.GameDetail.save_into_db(**dict_data)
         DB.GameDetail.save_into_db(**extra_data)

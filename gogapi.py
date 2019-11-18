@@ -5,7 +5,7 @@ import logging
 import html5lib
 from datetime import datetime
 from decimal import Decimal
-from .utilities import Requester, func_name, CoroutinePool
+from .utilities import Requester, CoroutinePool
 from .gogexceptions import *
 
 
@@ -26,7 +26,7 @@ class APIUtility:
         return Decimal(price_tmp[0]).quantize(Decimal('.00'))
 
     def merge_multi_prices_data(self, prices_data):
-        self.__logger.debug(f'Call {func_name()}')
+        self.__logger.debug(f'Called')
         ids = list()
         ret_prices = list()
         for price in prices_data:
@@ -103,7 +103,7 @@ class API:
         return self.__hosts
 
     async def get_total_num(self):
-        self.__logger.debug(f"Call {func_name()}")
+        self.__logger.debug(f"Called")
         async with Requester() as req:
             fst_page = await req.get_json(self.__hosts['detail'])
 
@@ -112,20 +112,20 @@ class API:
                 pages = fst_page['pages']
                 lst_page_url = fst_page['_links']['last']['href']
             except Exception as e:
-                self.__logger.error(f"{func_name()} {type(e).__name__} {e}")
+                self.__logger.error(f"{type(e).__name__} {e}")
                 raise
 
             lst_page = await req.get_json(lst_page_url)
             try:
                 lst_num = len(lst_page['_embedded']['items'])
             except Exception as e:
-                self.__logger.error(f"[{func_name()}] {type(e).__name__} {e}")
+                self.__logger.error(f"{type(e).__name__} {e}")
                 raise
 
             return limit * (pages - 1) + lst_num
 
     async def get_product_id_in_page(self, page, limit=50):
-        self.__logger.debug(f"Call {func_name()}")
+        self.__logger.debug(f"Called")
         params = {'page': page, 'limit': limit, 'locale': 'en-US'}
         async with Requester() as req:
             page_data = await req.get_json(self.hosts['detail'], params=params)
@@ -133,7 +133,7 @@ class API:
             try:
                 items = page_data['_embedded']['items']
             except Exception as e:
-                self.__logger.error(f"[{func_name()}] {type(e).__name__} {e}")
+                self.__logger.error(f"{type(e).__name__} {e}")
                 raise
 
             result = list()
@@ -141,30 +141,30 @@ class API:
                 try:
                     result.append(item['_embedded']['product']['id'])
                 except Exception as e:
-                    self.__logger.error(f"{func_name()} {type(e).__name__} {e}")
+                    self.__logger.error(f"{type(e).__name__} {e}")
                     raise
             return result
 
     async def get_product_id_in_pages(self, pages: list, limit=50):
-        self.__logger.debug(f"Call {func_name()}")
+        self.__logger.debug(f"Called")
         coro_pool = CoroutinePool(coro_list=[self.get_product_id_in_page(page, limit) for page in pages])
         return await coro_pool.run_all()
 
     async def get_all_product_id(self):
-        self.__logger.debug(f"Call {func_name()}")
+        self.__logger.debug(f"Called")
         async with Requester() as request:
             pages_data = await request.get_json(self.__hosts['detail'])
             try:
                 pages = pages_data['pages']
             except Exception as e:
-                self.__logger.error(f"{func_name()} {type(e).__name__} {e}")
+                self.__logger.error(f"{type(e).__name__} {e}")
                 raise
 
         pages = range(1, pages+1)
         return await self.get_product_id_in_pages(pages, limit=50)
 
     async def get_product_data(self, product_id: str):
-        self.__logger.debug(f"Call {func_name()} id={product_id}")
+        self.__logger.debug(f"Called, id={product_id}")
 
         params = {'locale': 'en-US'}
         url = f"{self.__hosts['detail']}/{product_id}"
@@ -178,14 +178,14 @@ class API:
                 raise
 
     async def get_product_achievement(self, client_id, user_id, token_type, access_token):
-        self.__logger.debug(f"Call {func_name()}")
+        self.__logger.debug(f"Called")
         url = self.__hosts['achievement'].replace('{clientid}', client_id).replace('{userid}', user_id)
         headers = {'Authorization': f'{token_type.title()} {access_token}'}
         async with Requester() as request:
             return await request.get_json(url, headers=headers)
 
     async def get_countries(self):
-        self.__logger.debug(f"Call {func_name()}")
+        self.__logger.debug(f"Called")
         async with Requester() as request:
             return await request.get_json(self.__hosts['region'])
 
@@ -194,7 +194,7 @@ class API:
         prod_ids = ','.join(id_list)
         params = {'ids': prod_ids, 'countryCode': country}
 
-        self.__logger.debug(f"Call {func_name()} ids=[{prod_ids}] countries={country}")
+        self.__logger.debug(f"Called, ids=[{prod_ids}] countries={country}")
 
         async with Requester() as request:
             prices_in_country = await request.get_json(self.__hosts['multiprice'], params)
@@ -219,7 +219,7 @@ class API:
             return results
 
     async def get_price_in_countries(self, product_ids: list, countries: list):
-        self.__logger.debug(f"Call {func_name()} ids={product_ids} countries={countries}")
+        self.__logger.debug(f"Called, ids={product_ids} countries={countries}")
         coro_pool = CoroutinePool(coro_list=[self.get_price_in_country(product_ids, country) for country in countries])
         results = sum(await coro_pool.run_all(), [])
         return self.__utl.merge_multi_prices_data(results)
@@ -235,7 +235,7 @@ class API:
                         'value':<rating>(decimal object)
                     }
         """
-        self.__logger.info(f"Call {func_name()} id={product_id}")
+        self.__logger.info(f"Called id={product_id}")
         url = f"{self.__hosts['rating'].replace('{productid}', str(product_id))}"
 
         async with Requester() as request:
@@ -248,7 +248,7 @@ class API:
         url = f"{self.__hosts['extend_detail']}/{product_id}"
         params = {'expand': 'downloads', 'locale': 'en-US'}
 
-        self.__logger.info(f"Call {func_name()} id={product_id}")
+        self.__logger.info(f"Called, id={product_id}")
 
         async with Requester() as request:
             try:
@@ -265,7 +265,7 @@ class API:
                 raise
 
     async def get_product_builds(self, product_id, os: str):
-        self.__logger.info(f"Call {func_name()} id={product_id} os={os}")
+        self.__logger.info(f"Called, id={product_id} os={os}")
 
         url = f"{self.__hosts['builds'].replace('{productid}', str(product_id)).replace('{os}', os)}"
         async with Requester() as request:
@@ -279,7 +279,7 @@ class API:
         :param passwd: GOG password
         :return: dict object with access_token refresh_token expired_time and user_id
         """
-        self.__logger.debug(f"Call {func_name()} username={username} password={passwd}")
+        self.__logger.debug(f"Called, username={username} password={passwd}")
         async with Requester() as request:
             authrep = await request.get(self.__hosts['auth'], params=self.__auth['auth'])
             etree = html5lib.parse(authrep.text, treebuilder='lxml', namespaceHTMLElements=False)
@@ -317,7 +317,7 @@ class API:
             return token
 
     async def refresh_token(self, rtoken):
-        self.__logger.debug(f"Call {func_name()}")
+        self.__logger.debug(f"Called")
         self.__auth['refresh']['refresh_token'] = rtoken
         async with Requester() as request:
             token = await request.get_json(self.__hosts['token'], self.__auth['refresh'])
