@@ -111,7 +111,9 @@ class GOGToken:
 
     def refresh(self):
         try:
-            data = asyncio.run(self.__api.refresh_token(self.__refresh_token))
+            loop = asyncio.new_event_loop()
+            data = loop.run_until_complete(self.__api.refresh_token(self.__refresh_token))
+            loop.close()
             self.load(**data)
             if self.__is_autosave:
                 self.save_to_file()
