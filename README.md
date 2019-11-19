@@ -10,10 +10,11 @@ See the database model here: [Database Model](https://editor.ponyorm.com/user/ti
 
 ## Dependencies
 
-- python >= 3.7
+- python >= 3.6
 
 ## TODO
 
-- auto record database change, and save record into `ChangeRecord` table
+- add more change history to be recorded
+- ~~auto record database change, and save record into `ChangeRecord` table~~
 
 Thanks to [Yepoleb](https://github.com/Yepoleb) for his help
