@@ -11,12 +11,26 @@ import logging
 import json
 import re
 from .gogexceptions import *
-import inspect
 import asyncio
+import os
+from random import randint
 
 
-fake_ua = UserAgent(fallback='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 '+ \
-                                       '(KHTML, like Gecko) Chrome/41.0.2227.1 Safari/537.36').random
+def random_UA():
+    if not os.path.exists('fakeua.json'):
+        with open('fakeua.json', 'w') as uafile:
+            fakeua = UserAgent()
+            json.dump(fakeua.data, uafile)
+            agents = fakeua.data
+    else:
+        with open('fakeua.json', 'r') as uafile:
+            agents = json.load(uafile)
+
+    browser = agents['randomize'][str(randint(0, len(agents['randomize'])))]
+    return agents['browsers'][browser][randint(0, len(agents['browsers'][browser]))]
+
+
+fake_ua = random_UA()
 
 
 class CoroutinePool:
