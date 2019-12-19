@@ -1,6 +1,7 @@
 .idea
 .vscode
 config.py
+fakeua.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
