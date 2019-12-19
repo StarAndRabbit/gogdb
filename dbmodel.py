@@ -133,6 +133,13 @@ class BaseModel(object):
     def after_save(self, op):
         pass
 
+    def __str__(self):
+        pk = self.get_pk()
+        if isinstance(pk, tuple):
+            return pk
+        else:
+            return str(pk)
+
 
 class GameDetail(db.Entity, BaseModel):
     id = PrimaryKey('Game', reverse='detail')
@@ -178,12 +185,33 @@ class GameDetail(db.Entity, BaseModel):
     repositorysV1 = Set('RepositoryV1')
     repositoryV2 = Set('RepositoryV2')
 
+    # attribute name that need record changes
+    need_rec_chgs = ['title', 'slug', 'inDevelopment', 'isUsingDosBox',
+                     'isAvailableForSale', 'isVisibleInCatalog', 'isPreorder',
+                     'isInstallable', 'hasProductCard', 'isSecret', 'productType',
+                     'globalReleaseDate', 'gogReleaseDate', 'series']
+    need_rec_chgs_set = []
+
     def after_save(self, op):
         if op not in self.hookOperator:
             return
         else:
             if (op == 'update' or op == 'checkout') and self.id.initialized is True:
                 self.id.detailCheckout = datetime.utcnow()
+                if op == 'update':
+                    change_id = ChangeRecord.dispatch_changeid(self.id)
+                    for attr in self.oldValueDict.keys():
+                        if attr in self.need_rec_chgs:
+                            self.__common_update(change_id, attr)
+                        elif attr in self.need_rec_chgs_set:
+                            self.__set_update(change_id, attr)
+
+    def __common_update(self, change_id, attr):
+        args = [attr, self.oldValueDict[attr], getattr(self, attr), self.id]
+        change_id.record(args, change_templates.common_chg_str)
+
+    def __set_update(self, change_id, attr):
+        pass
 
 
 class GameLink(db.Entity, BaseModel):
@@ -347,7 +375,6 @@ class ChangeRecord(db.Entity, BaseModel):
     def record(self, args, template):
         saved_changes = len(self.changes)
         args = list(map(lambda x: str(x), args))
-        flush()
         if exists(fmttmp for fmttmp in FormatTemplate if fmttmp.name == template['name']):
             temp = FormatTemplate[template['name']]
         else:
