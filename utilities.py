@@ -26,8 +26,8 @@ def random_UA():
         with open('fakeua.json', 'r') as uafile:
             agents = json.load(uafile)
 
-    browser = agents['randomize'][str(randint(0, len(agents['randomize'])))]
-    return agents['browsers'][browser][randint(0, len(agents['browsers'][browser]))]
+    browser = agents['randomize'][str(randint(0, len(agents['randomize'])-1))]
+    return agents['browsers'][browser][randint(0, len(agents['browsers'][browser])-1)]
 
 
 fake_ua = random_UA()
