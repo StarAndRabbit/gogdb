@@ -13,8 +13,6 @@ db = Database()
 
 
 class BaseModel(object):
-    oldValueDict = dict()
-    hookOperator = ['insert', 'update', 'checkout']
 
     @classmethod
     def equals(cls, a, b):
@@ -64,15 +62,15 @@ class BaseModel(object):
         except:
             logger.debug(f'Insert into [{cls.__dict__["_table_"]}]')
             obj = cls(**kwargs)
-            obj.after_save('insert')        # callback method
+            obj.insert_callback()       # callback
             return obj
 
         obj_dict = dict()
         for col in adict.keys():
             if col not in pk_columns:
                 obj_dict[col] = getattr(obj, col)
-        obj.oldValueDict = dict()
 
+        changed_dict = dict()       # record changed column name and value
         need_update = dict()
         for col in kwargs.keys():
             if col in pk_columns:
@@ -81,18 +79,23 @@ class BaseModel(object):
                 if cls.equals(obj_dict[col], kwargs[col]):
                     continue
                 else:
-                    obj.oldValueDict[col] = obj_dict[col]
+                    if isinstance(obj_dict[col], collections.Iterable) and \
+                            not isinstance(obj_dict[col], str) and \
+                            not isinstance(obj_dict[col], dict):    # covert str or dict to set will cause error
+                        changed_dict[col] = set(obj_dict[col])      # Use "set" to implement "deepcopy"
+                    else:
+                        changed_dict[col] = obj_dict[col]
                     need_update[col] = kwargs[col]
         if len(need_update) == 0:
             logger.debug(f'Nothing needs to be done in [{cls.__dict__["_table_"]}]')
             logger.debug(f'call save_into_db time usage: {time.time() - start_time}')
-            obj.after_save('checkout')          # hook method
+            obj.checkout_callback()     # callback
             return obj
         else:
             obj.set(**need_update)
             logger.info(f'Update columns {[key for key in need_update.keys()]} in [{cls.__dict__["_table_"]}]')
             logger.debug(f'call save_into_db time usage: {time.time() - start_time}')
-            obj.after_save('update')            # hook method
+            obj.update_callback(changed_dict)       #callback
             return obj
 
     def update(self, **kwargs):
@@ -109,8 +112,8 @@ class BaseModel(object):
                     break
 
         obj_dict = self.to_dict(exclude=pk_columns, with_collections=True, related_objects=True)
-        self.oldValueDict = dict()
 
+        changed_dict = dict()
         need_update = dict()
         for col in kwargs.keys():
             if col in pk_columns:
@@ -119,18 +122,27 @@ class BaseModel(object):
                 if self.__class__.equals(obj_dict[col], kwargs[col]):
                     continue
                 else:
-                    self.oldValueDict[col] = obj_dict[col]
+                    changed_dict[col] = obj_dict[col]
                     need_update[col] = kwargs[col]
         if len(need_update) == 0:
             logger.debug(f'Nothing needs to be done in [{self.__class__.__dict__["_table_"]}]')
-            self.after_save('checkout')         # hook method
+            self.checkout_callback()        # callback
         else:
             self.set(**need_update)
             logger.debug(
                 f'Update columns {[key for key in need_update.keys()]} in [{self.__class__.__dict__["_table_"]}]')
-            self.after_save('update')           # hook method
+            self.update_callback(changed_dict)  # callback
 
-    def after_save(self, op):
+    # called after insert
+    def insert_callback(self):
+        pass
+
+    # called after checkout
+    def checkout_callback(self):
+        pass
+
+    # called after update something
+    def update_callback(self, changed_dict):
         pass
 
     def __str__(self):
@@ -190,28 +202,40 @@ class GameDetail(db.Entity, BaseModel):
                      'isAvailableForSale', 'isVisibleInCatalog', 'isPreorder',
                      'isInstallable', 'hasProductCard', 'isSecret', 'productType',
                      'globalReleaseDate', 'gogReleaseDate', 'series']
-    need_rec_chgs_set = []
+    need_rec_chgs_set = ['publishers', 'developers', 'supportedOS', 'features',
+                         'tags', 'localizations', 'requiresGames', 'requiredByGames',
+                         'includesGames', 'includedInGames', 'editions', 'builds']
 
-    def after_save(self, op):
-        if op not in self.hookOperator:
-            return
-        else:
-            if (op == 'update' or op == 'checkout') and self.id.initialized is True:
-                self.id.detailCheckout = datetime.utcnow()
-                if op == 'update':
-                    change_id = ChangeRecord.dispatch_changeid(self.id)
-                    for attr in self.oldValueDict.keys():
-                        if attr in self.need_rec_chgs:
-                            self.__common_update(change_id, attr)
-                        elif attr in self.need_rec_chgs_set:
-                            self.__set_update(change_id, attr)
+    def __str__(self):
+        return {self.title}
 
-    def __common_update(self, change_id, attr):
-        args = [attr, self.oldValueDict[attr], getattr(self, attr), self.id]
+    def checkout_callback(self):
+        if self.id.initialized is True:
+            self.id.detailCheckout = datetime.utcnow()
+
+    def update_callback(self, changed_dict):
+        if self.id.initialized is True:
+            self.id.detailCheckout = datetime.utcnow()
+            change_id = ChangeRecord.dispatch_changeid(self.id)
+            for attr in changed_dict.keys():
+                if attr in self.need_rec_chgs:
+                    self.__common_update(change_id, changed_dict, attr)
+                elif attr in self.need_rec_chgs_set:
+                    self.__set_update(change_id, changed_dict, attr)
+
+    def __common_update(self, change_id, changed_dict, attr):
+        args = [attr, changed_dict[attr], getattr(self, attr), self.id]
         change_id.record(args, change_templates.common_chg_str)
 
-    def __set_update(self, change_id, attr):
-        pass
+    def __set_update(self, change_id, changed_dict, attr):
+        added = set(getattr(self, attr)) - set(changed_dict[attr])
+        removed = set(changed_dict[attr]) - set(getattr(self, attr))
+        if added:
+            args = [attr, added, self.id]
+            change_id.record(args, change_templates.set_added)
+        if removed:
+            args = [attr, removed, self.id]
+            change_id.record(args, change_templates.set_removed)
 
 
 class GameLink(db.Entity, BaseModel):
@@ -256,6 +280,9 @@ class Feature(db.Entity, BaseModel):
     name = Required(str)
     games = Set(GameDetail)
 
+    def __str__(self):
+        return self.name
+
 
 class FinalPriceRecord(db.Entity, BaseModel):
     """without currency attribute, use USD by default"""
@@ -265,14 +292,13 @@ class FinalPriceRecord(db.Entity, BaseModel):
     finalPrice = Optional(Decimal)
     PrimaryKey(game, country, dateTime)
 
-    def after_save(self, op):
-        if op not in self.hookOperator:
-            return
-        else:
-            now = datetime.utcnow()
-            self.game.id.finalPriceCheckout = now
-            if op == 'insert':
-                self.game.id.finalPriceUpdate = now
+    def insert_callback(self):
+        now = datetime.utcnow()
+        self.game.id.finalPriceCheckout = now
+        self.game.id.finalPriceUpdate = now
+
+    def checkout_callback(self):
+        self.game.id.finalPriceCheckout = datetime.utcnow()
 
 
 class Price(db.Entity, BaseModel):
@@ -284,30 +310,32 @@ class Price(db.Entity, BaseModel):
     priority = Required(int, default=0)
     PrimaryKey(game, country, currency)
 
-    def after_save(self, op):
-        if op not in self.hookOperator:
-            return
-        else:
-            now = datetime.utcnow()
-            self.game.id.priceCheckout = now
-            if op == 'insert':
-                self.game.id.priceUpdate = now
-                if self.currency == 'USD':
-                    FinalPriceRecord.save_into_db(**{
-                        'game': self.game,
-                        'country': self.country,
-                        'dateTime': now,
-                        'finalPrice': self.finalPrice
-                    })
-            elif op == 'update':
-                self.game.id.priceUpdate = now
-                if self.currency == 'USD' and 'finalPrice' in self.oldValueDict:
-                    FinalPriceRecord.save_into_db(**{
-                        'game': self.game,
-                        'country': self.country,
-                        'dateTime': now,
-                        'finalPrice': self.finalPrice
-                    })
+    def insert_callback(self):
+        now = datetime.utcnow()
+        self.game.id.priceCheckout = now
+        self.game.id.priceUpdate = now
+        if self.currency == 'USD':
+            FinalPriceRecord.save_into_db(**{
+                'game': self.game,
+                'country': self.country,
+                'dateTime': now,
+                'finalPrice': self.finalPrice
+            })
+
+    def checkout_callback(self):
+        self.game.id.priceCheckout = datetime.utcnow()
+
+    def update_callback(self, changed_dict):
+        now = datetime.utcnow()
+        self.game.id.priceCheckout = now
+        self.game.id.priceUpdate = now
+        if self.currency == 'USD' and 'finalPrice' in changed_dict:
+            FinalPriceRecord.save_into_db(**{
+                'game': self.game,
+                'country': self.country,
+                'dateTime': now,
+                'finalPrice': self.finalPrice
+            })
 
 
 class Localization(db.Entity, BaseModel):
@@ -315,6 +343,9 @@ class Localization(db.Entity, BaseModel):
     type = Required(str)
     game = Set(GameDetail)
     PrimaryKey(language, type)
+
+    def __str__(self):
+        return f'{str(self.language)}({self.type})'
 
 
 class Image(db.Entity, BaseModel):
@@ -361,6 +392,7 @@ class ChangeRecord(db.Entity, BaseModel):
 
     @classmethod
     def dispatch_changeid(cls, product):
+        flush()
         now = datetime.utcnow()
         crs = cls.select(
             lambda cr: now.replace(tzinfo=None) < cr.dateTime + timedelta(minutes=30) and cr.game == product).order_by(
@@ -373,8 +405,12 @@ class ChangeRecord(db.Entity, BaseModel):
             return ChangeRecord(changeId=change_id, game=product, dateTime=now)
 
     def record(self, args, template):
+
+        def set2str(set_obj):
+            return ', '.join(list(map(lambda x: str(x), set_obj)))
+
         saved_changes = len(self.changes)
-        args = list(map(lambda x: str(x), args))
+        args = list(map(lambda x: set2str(x) if isinstance(x, set) else str(x), args))
         if exists(fmttmp for fmttmp in FormatTemplate if fmttmp.name == template['name']):
             temp = FormatTemplate[template['name']]
         else:
@@ -386,6 +422,9 @@ class Tag(db.Entity, BaseModel):
     id = PrimaryKey(int)
     name = Required(str)
     games = Set(GameDetail)
+
+    def __str__(self):
+        return self.name
 
 
 class Series(db.Entity, BaseModel):
@@ -441,7 +480,7 @@ class LanguagePack(db.Entity, BaseModel):
 class BonusContent(db.Entity, BaseModel):
     id = Required(int)
     download = Required(Download)
-    bonus = Required('Bonus')
+    bonus = Optional('Bonus')
     count = Required(int)
     totalSize = Required(int, size=64)
     bonusFiles = Set('BonusFile')
@@ -458,6 +497,12 @@ class Language(db.Entity, BaseModel):
     supportCommands = Set('SupportCommand')
     depotsV1 = Set('DepotV1')
     depotsV2 = Set('DepotV2')
+
+    def __str__(self):
+        if self.name != '':
+            return self.name
+        else:
+            return self.code
 
 
 class BonusFile(db.Entity, BaseModel):
@@ -488,6 +533,20 @@ class Bonus(db.Entity, BaseModel):
     bonusType = Required(BonusType)
     bonusContent = Optional(BonusContent)
     PrimaryKey(game, name)
+
+    def __str__(self):
+        return self.name
+
+    def after_insert(self):
+        if self.game.id.initialized is True:
+            change_id = ChangeRecord.dispatch_changeid(self.game.id)
+            args = ['bonuses', self, self.game.id.id]
+            change_id.record(args, change_templates.set_added)
+
+    def after_delete(self):
+        change_id = ChangeRecord.dispatch_changeid(self.game.id)
+        args = ['bonuses', self, self.game.id.id]
+        change_id.record(args, change_templates.set_removed)
 
 
 class PatcheFile(db.Entity, BaseModel):
@@ -562,14 +621,13 @@ class Build(db.Entity, BaseModel):
     repositoryV1 = Optional('RepositoryV1')
     repositoryV2 = Optional('RepositoryV2')
 
-    def after_save(self, op):
-        if op not in self.hookOperator:
-            return
-        else:
-            now = datetime.utcnow()
-            self.product.id.buildsCheckout = now
-            if op == 'insert':
-                self.product.id.buildsUpdate = now
+    def insert_callback(self):
+        now = datetime.utcnow()
+        self.product.id.buildsCheckout = now
+        self.product.id.buildsUpdate = now
+
+    def checkout_callback(self):
+        self.product.id.buildsCheckout = datetime.utcnow()
 
 
 class BuildTag(db.Entity, BaseModel):
@@ -605,18 +663,14 @@ class RepositoryV2(db.Entity, BaseModel):
     dependencies = Set('Dependency')
     cloudSaves = Set('CloudSave')
 
-    def after_save(self, op):
-        if op not in self.hookOperator:
-            return
-        else:
-            if op == 'insert':
-                if self.build.isDefault is True:
-                    DefaultClientInfo.save_into_db(**{
-                        'game': self.build.product,
-                        'platform': self.platform,
-                        'clientId': self.clientId,
-                        'clientSecret': self.clientSecret
-                    })
+    def insert_callback(self):
+        if self.build.isDefault is True:
+            DefaultClientInfo.save_into_db(**{
+                'game': self.build.product,
+                'platform': self.platform,
+                'clientId': self.clientId,
+                'clientSecret': self.clientSecret
+            })
 
 
 class RepositoryProductV1(db.Entity, BaseModel):
@@ -713,21 +767,19 @@ class Game(db.Entity, BaseModel):
     repositoryProductV1 = Optional(RepositoryProductV1)
     repositoryProductV2 = Optional(RepositoryProductV2)
 
-    def after_save(self, op):
-        if op not in self.hookOperator:
-            return
-        else:
-            change_id = ChangeRecord.dispatch_changeid(self)
-            if op == 'insert':
-                args = [str(self.id)]
-                change_id.record(args, change_templates.prod_add)
-            elif op == 'update':
-                for key in self.oldValueDict.keys():
-                    args = [str(self.id)]
-                    if key == 'initialized' and self.oldValueDict[key] is False:
-                        change_id.record(args, change_templates.prod_init)
-                    elif key == 'invisible' and self.oldValueDict[key] is False:
-                        change_id.record(args, change_templates.prod_invs)
+    def insert_callback(self):
+        change_id = ChangeRecord.dispatch_changeid(self)
+        args = [str(self.id)]
+        change_id.record(args, change_templates.prod_add)
+
+    def update_callback(self, changed_dict):
+        change_id = ChangeRecord.dispatch_changeid(self)
+        args = [str(self.id)]
+        for key in changed_dict.keys():
+            if key == 'initialized' and changed_dict[key] is False:
+                change_id.record(args, change_templates.prod_init)
+            elif key == 'invisible' and changed_dict[key] is False:
+                change_id.record(args, change_templates.prod_invs)
 
 
 class Country(db.Entity, BaseModel):

@@ -14,6 +14,8 @@ class ArgsName:
     OLD_NUM = "old_num"         # old number
     NEW_NUM = "new_num"         # new number
     ATTR_NAME = "attr_name"     # attribute name
+    SET_ADD = "set_add"         # add into set
+    SET_RM = "set_rm"           # remove from set
 
 
 class Template:
@@ -50,6 +52,12 @@ class ChangeTemplates:
         self.__common_chg_str = Template('common_chg_str', OptType.CHG,
                                          [ArgsName.ATTR_NAME, ArgsName.OLD_STR, ArgsName.NEW_STR, ArgsName.PROD_ID],
                                          'Changed {0} – {1} › {2}')
+        self.__set_added = Template('set_added', OptType.CHG,
+                                    [ArgsName.ATTR_NAME, ArgsName.SET_ADD, ArgsName.PROD_ID],
+                                    'Changed {0} – added {1}')
+        self.__set_removed = Template('set_removed', OptType.CHG,
+                                      [ArgsName.ATTR_NAME, ArgsName.SET_RM, ArgsName.PROD_ID],
+                                      'Changed {0} – removed {1}')
 
     @property
     def prod_add(self):
@@ -66,6 +74,14 @@ class ChangeTemplates:
     @property
     def common_chg_str(self):
         return self.__common_chg_str.to_dict()
+
+    @property
+    def set_added(self):
+        return self.__set_added.to_dict()
+
+    @property
+    def set_removed(self):
+        return self.__set_removed.to_dict()
 
 
 change_templates = ChangeTemplates()
