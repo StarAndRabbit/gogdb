@@ -13,6 +13,7 @@ class ArgsName:
     NEW_STR = "new_str"         # new string
     OLD_NUM = "old_num"         # old number
     NEW_NUM = "new_num"         # new number
+    DELTA_NUM = "delta_num"     # new number - old number
     ATTR_NAME = "attr_name"     # attribute name
     SET_ADD = "set_add"         # add into set
     SET_RM = "set_rm"           # remove from set
@@ -58,6 +59,9 @@ class ChangeTemplates:
         self.__set_removed = Template('set_removed', OptType.CHG,
                                       [ArgsName.ATTR_NAME, ArgsName.SET_RM, ArgsName.PROD_ID],
                                       'Changed {0} – removed {1}')
+        self.__bprice_chg = Template('bprice_chg', OptType.CHG,
+                                     [ArgsName.OLD_NUM, ArgsName.NEW_NUM, ArgsName.PROD_ID],
+                                     'Changed BasePrice – {0} › {1} USD')
 
     @property
     def prod_add(self):
@@ -82,6 +86,10 @@ class ChangeTemplates:
     @property
     def set_removed(self):
         return self.__set_removed.to_dict()
+
+    @property
+    def bprice_chg(self):
+        return self.__bprice_chg.to_dict()
 
 
 change_templates = ChangeTemplates()

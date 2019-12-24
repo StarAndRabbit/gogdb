@@ -329,13 +329,18 @@ class Price(db.Entity, BaseModel):
         now = datetime.utcnow()
         self.game.id.priceCheckout = now
         self.game.id.priceUpdate = now
-        if self.currency == 'USD' and 'finalPrice' in changed_dict:
-            FinalPriceRecord.save_into_db(**{
+        if self.currency == 'USD':
+            if 'finalPrice' in changed_dict:
+                FinalPriceRecord.save_into_db(**{
                 'game': self.game,
                 'country': self.country,
                 'dateTime': now,
                 'finalPrice': self.finalPrice
             })
+            if 'basePrice' in changed_dict:
+                change_id = ChangeRecord.dispatch_changeid(self.game.id)
+                args = [changed_dict['basePrice'], self.basePrice, self.game.id]
+                change_id.record(args, change_templates.bprice_chg)
 
 
 class Localization(db.Entity, BaseModel):
