@@ -4,9 +4,9 @@ from pony.orm import *
 from .gogexceptions import NeedPrimaryKey
 import logging
 from hashlib import sha256
-from .changetemplate import change_templates
 import time
 import collections
+from .crtypes import *
 
 
 db = Database()
@@ -224,18 +224,16 @@ class GameDetail(db.Entity, BaseModel):
                     self.__set_update(change_id, changed_dict, attr)
 
     def __common_update(self, change_id, changed_dict, attr):
-        args = [attr, changed_dict[attr], getattr(self, attr), self.id]
-        change_id.record(args, change_templates.common_chg_str)
+        change_id.record(CRArgs.wrap_args(CRTypes.DETIAL_CHANGE, self.id,
+                                          attr, changed_dict[attr], getattr(self, attr)))
 
     def __set_update(self, change_id, changed_dict, attr):
         added = set(getattr(self, attr)) - set(changed_dict[attr])
         removed = set(changed_dict[attr]) - set(getattr(self, attr))
         if added:
-            args = [attr, added, self.id]
-            change_id.record(args, change_templates.set_added)
+            change_id.record(CRArgs.wrap_args(CRTypes.SET_ADD, self.id, attr, added))
         if removed:
-            args = [attr, removed, self.id]
-            change_id.record(args, change_templates.set_removed)
+            change_id.record(CRArgs.wrap_args(CRTypes.SET_RM, self.id, attr, removed))
 
 
 class GameLink(db.Entity, BaseModel):
@@ -339,8 +337,11 @@ class Price(db.Entity, BaseModel):
             })
             if 'basePrice' in changed_dict:
                 change_id = ChangeRecord.dispatch_changeid(self.game.id)
-                args = [changed_dict['basePrice'], self.basePrice, self.game.id]
-                change_id.record(args, change_templates.bprice_chg)
+                change_id.record(CRArgs.wrap_args(CRTypes.BASEPRICE_CHANGE,
+                                                  self.game.id, 'basePrice',
+                                                  self.country,
+                                                  changed_dict['basePrice'],
+                                                  self.basePrice, self.currency))
 
 
 class Localization(db.Entity, BaseModel):
@@ -409,18 +410,14 @@ class ChangeRecord(db.Entity, BaseModel):
             change_id = sha256(bytes(f'{product.id}{unix_now}', encoding='utf8')).hexdigest()
             return ChangeRecord(changeId=change_id, game=product, dateTime=now)
 
-    def record(self, args, template):
+    def record(self, args):
 
         def set2str(set_obj):
             return ', '.join(list(map(lambda x: str(x), set_obj)))
 
         saved_changes = len(self.changes)
         args = list(map(lambda x: set2str(x) if isinstance(x, set) else str(x), args))
-        if exists(fmttmp for fmttmp in FormatTemplate if fmttmp.name == template['name']):
-            temp = FormatTemplate[template['name']]
-        else:
-            temp = FormatTemplate(**template)
-        BaseChange(id=saved_changes, changeRecord=self, args=args, template=temp)
+        BaseChange(id=saved_changes, changeRecord=self, args=args)
 
 
 class Tag(db.Entity, BaseModel):
@@ -545,13 +542,11 @@ class Bonus(db.Entity, BaseModel):
     def after_insert(self):
         if self.game.id.initialized is True:
             change_id = ChangeRecord.dispatch_changeid(self.game.id)
-            args = ['bonuses', self, self.game.id.id]
-            change_id.record(args, change_templates.set_added)
+            change_id.record(CRArgs.wrap_args(CRTypes.SET_ADD, self.game.id.id, 'bonuses', self))
 
     def after_delete(self):
         change_id = ChangeRecord.dispatch_changeid(self.game.id)
-        args = ['bonuses', self, self.game.id.id]
-        change_id.record(args, change_templates.set_removed)
+        change_id.record(CRArgs.wrap_args(CRTypes.SET_RM, self.game.id.id, 'bonuses', self))
 
 
 class PatcheFile(db.Entity, BaseModel):
@@ -605,11 +600,7 @@ class BaseChange(db.Entity, BaseModel):
     id = Required(int)
     changeRecord = Required(ChangeRecord)
     args = Required(StrArray)
-    template = Required('FormatTemplate')
     PrimaryKey(id, changeRecord)
-
-    def format(self):
-        return self.template.formatString.format(*[arg for arg in self.args])
 
 
 class Build(db.Entity, BaseModel):
@@ -774,17 +765,15 @@ class Game(db.Entity, BaseModel):
 
     def insert_callback(self):
         change_id = ChangeRecord.dispatch_changeid(self)
-        args = [str(self.id)]
-        change_id.record(args, change_templates.prod_add)
+        change_id.record(CRArgs.wrap_args(CRTypes.PRODUCT_ADD, self.id))
 
     def update_callback(self, changed_dict):
         change_id = ChangeRecord.dispatch_changeid(self)
-        args = [str(self.id)]
         for key in changed_dict.keys():
             if key == 'initialized' and changed_dict[key] is False:
-                change_id.record(args, change_templates.prod_init)
+                change_id.record(CRArgs.wrap_args(CRTypes.PRODUCT_INIT, self.id))
             elif key == 'invisible' and changed_dict[key] is False:
-                change_id.record(args, change_templates.prod_invs)
+                change_id.record(CRArgs.wrap_args(CRTypes.PRODUCT_INVISIBLE, self.id))
 
 
 class Country(db.Entity, BaseModel):
@@ -793,14 +782,6 @@ class Country(db.Entity, BaseModel):
     priority = Required(int, default=0, unsigned=True)
     finalPriceRecord = Set(FinalPriceRecord)
     price = Set(Price)
-
-
-class FormatTemplate(db.Entity, BaseModel):
-    name = PrimaryKey(str)
-    type = Required(str)
-    argsName = Required(StrArray)  # editor not support StrArray now, use str instead
-    formatString = Required(str)
-    baseChanges = Set(BaseChange)
 
 
 class AverageRating(db.Entity, BaseModel):
