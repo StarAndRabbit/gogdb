@@ -1,7 +1,6 @@
 import inspect
 from abc import ABCMeta, abstractmethod
 from . import dbmodel as DB
-from pony import orm
 
 
 class GOGBase:
