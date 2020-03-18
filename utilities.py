@@ -268,6 +268,7 @@ def exception_wrap(exp: Exception):
         InvalidURL: lambda x: GOGBadRequest(),
         ClientPayloadError: lambda x: GOGBadRequest(),
         ClientConnectionError: lambda x: GOGNetworkError(),
+        ClientConnectorError: lambda x: GOGNetworkError(),
         ClientResponseError: lambda x: GOGResponseError.judge_status(x)
     }
     if exp.__class__ not in exp_map_table:
