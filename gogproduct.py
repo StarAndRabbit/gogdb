@@ -511,11 +511,13 @@ class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
 
     @property
     def globalReleaseDate(self):
-        return dateutil.parser.parse(self.__globalReleaseDate).replace(tzinfo=None)
+        return dateutil.parser.parse(self.__globalReleaseDate).replace(tzinfo=None) \
+            if self.__globalReleaseDate is not None else None
 
     @property
     def gogReleaseDate(self):
-        return dateutil.parser.parse(self.__gogReleaseDate).replace(tzinfo=None)
+        return dateutil.parser.parse(self.__gogReleaseDate).replace(tzinfo=None) \
+            if self.__gogReleaseDate is not None else None
 
     @property
     def averageRating(self):
@@ -730,7 +732,7 @@ class GOGProduct(GOGBase, GOGNeedNetworkMetaClass):
     def __after_save_or_update(self):
         self.averageRating.save_or_update(self.id)
         self.links.save_or_update(self.id)
-        if self.image is not None:
+        if self.image is not None and self.image.href is not None:
             self.image.save_or_update(self.id)
 
         list(map(lambda y: list(map(lambda x: x.save_or_update(self.id), y)), [
