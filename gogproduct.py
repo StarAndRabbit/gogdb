@@ -396,14 +396,6 @@ class Installer(GOGDownloadable):
 class BonusContent(GOGDownloadable):
 
     @property
-    def bonus(self):
-        """
-        index of Bounses Table
-        :return: Bonuses table index
-        """
-        return self.__bonus
-
-    @property
     def count(self):
         return self.__count
 
@@ -415,7 +407,6 @@ class BonusContent(GOGDownloadable):
     def save_or_update(self, game):
         dict_data = self.to_dict(with_collections=False)
         dict_data['download'] = GOGDownloadable.get_downloadable_table(game)
-        dict_data['bonus'] = DB.Bonus[game, self.bonus]
         bonuscont_obj = DB.BonusContent.save_into_db(**dict_data)
         orm.flush()
         for file in self.files:

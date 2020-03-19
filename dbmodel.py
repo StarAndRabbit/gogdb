@@ -482,7 +482,6 @@ class LanguagePack(db.Entity, BaseModel):
 class BonusContent(db.Entity, BaseModel):
     id = Required(int)
     download = Required(Download)
-    bonus = Optional('Bonus')
     count = Required(int)
     totalSize = Required(int, size=64)
     bonusFiles = Set('BonusFile')
@@ -533,7 +532,6 @@ class Bonus(db.Entity, BaseModel):
     game = Required(GameDetail)
     name = Required(str)
     bonusType = Required(BonusType)
-    bonusContent = Optional(BonusContent)
     PrimaryKey(game, name)
 
     def __str__(self):
