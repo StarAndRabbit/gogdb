@@ -6,6 +6,7 @@ import dateutil.parser
 import json
 from . import dbmodel as DB
 from pony import orm
+from datetime import datetime
 
 
 def get_lan_obj(name, gen):
@@ -55,12 +56,11 @@ class RepoProductV1(GOGBase):
     def save_or_update(self):
         deps = list()
         if self.dependencies is not None:
-            for idx in range(len(self.dependencies)):
-                dep = self.dependencies[idx]
-                if orm.exists(d for d in DB.RepositoryProductDependency if d.name == dep.strip()):
-                    deps.append(orm.get(d for d in DB.RepositoryProductDependency if d.name == dep.strip()))
+            for dep in self.dependencies:
+                if orm.exists(d for d in DB.RepositoryV1Dependency if d.name == dep.strip()):
+                    deps.append(orm.get(d for d in DB.RepositoryV1Dependency if d.name == dep.strip()))
                 else:
-                    deps.append(DB.RepositoryProductDependency(name=dep.strip()))
+                    deps.append(DB.RepositoryV1Dependency(name=dep.strip()))
         dict_data = self.to_dict()
         dict_data['dependencies'] = deps
         return DB.RepositoryProductV1.save_into_db(**dict_data)
@@ -141,7 +141,7 @@ class DepotV1(GOGBase):
         self.__languages = repo_depot_data.get('languages')
         self.__manifest = repo_depot_data.get('manifest')
         self.__systems = list(map(lambda x: x.lower(), repo_depot_data.get('systems')))
-        self.__size = repo_depot_data.get('size')
+        self.__size = repo_depot_data.get('size', -1)
 
     @property
     def products(self):
@@ -301,7 +301,7 @@ class DepotV2(GOGBase):
 
     def __init__(self, depot_data, isOffline=False):
         self.__manifest = depot_data.get('manifest')
-        self.__comp_size = depot_data.get('compressedSize')
+        self.__comp_size = depot_data.get('compressedSize', -1)
         self.__prod_id = depot_data.get('productId')
         self.__languages = depot_data.get('languages')
         self.__languages = list(map(lambda x: x.split('-')[0], self.__languages))
@@ -580,4 +580,10 @@ class BuildsTable(GOGBase, GOGNeedNetworkMetaClass):
         return self.__prod_id
 
     def save_or_update(self):
-        return list(map(lambda x: x.save_or_update(), self.builds))
+        if len(self.builds) == 0:
+            now = datetime.utcnow()
+            DB.Game[self.product].buildsCheckout = now
+            DB.Game[self.product].buildsUpdate = now
+            return []
+        else:
+            return list(map(lambda x: x.save_or_update(), self.builds))

@@ -658,7 +658,7 @@ class RepositoryV2(db.Entity, BaseModel):
     cloudSaves = Set('CloudSave')
 
     def insert_callback(self):
-        if self.build.isDefault is True:
+        if self.build.isDefault is True and self.clientId.strip() and self.clientSecret.strip():
             DefaultClientInfo.save_into_db(**{
                 'game': self.build.product,
                 'platform': self.platform,
@@ -670,16 +670,16 @@ class RepositoryV2(db.Entity, BaseModel):
 class RepositoryProductV1(db.Entity, BaseModel):
     game = PrimaryKey('Game')
     standalone = Optional(bool)
-    dependencies = Set('RepositoryProductDependency')
+    dependencies = Set('RepositoryV1Dependency')
     repositoryV1 = Set(RepositoryV1)
     supportCommands = Set('SupportCommand')
     depotsV1 = Set('DepotV1')
 
 
-class RepositoryProductDependency(db.Entity, BaseModel):
+class RepositoryV1Dependency(db.Entity, BaseModel):
     id = PrimaryKey(int, auto=True)
     name = Required(str)
-    repositoryProduct = Required(RepositoryProductV1)
+    repositoryProduct = Set(RepositoryProductV1)
 
 
 class SupportCommand(db.Entity, BaseModel):
