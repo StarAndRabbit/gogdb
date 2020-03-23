@@ -1,6 +1,8 @@
 from .gogapi import gogapi
 from .gogbase import GOGBase, GOGNeedNetworkMetaClass
 from . import dbmodel as DB
+from datetime import datetime
+from pony.orm import db_session
 
 
 class Country(GOGBase):
@@ -110,15 +112,32 @@ class GOGPrice(GOGBase, GOGNeedNetworkMetaClass):
     async def create(cls, prod_id: str, countries: list):
         prod_id = [str(prod_id)]
         price_data = await gogapi.get_price_in_countries(prod_id, countries)
+        GOGPrice.__deal_non_price_prod(prod_id, price_data)
         return GOGPrice(price_data[0])
 
     @classmethod
     async def create_multi(cls, prod_ids: list, countries: list):
         price_datas = await gogapi.get_price_in_countries(prod_ids, countries)
         objects = list()
+        GOGPrice.__deal_non_price_prod(prod_ids, price_datas)
         for data in price_datas:
             objects.append(GOGPrice(data))
         return objects
+
+    @staticmethod
+    def __deal_non_price_prod(ids, price_datas):
+        ids_in_result = list()
+        for price_data in price_datas:
+            ids_in_result.append(price_data['product'])
+        ids_in_result = list(map(lambda x: str(x), ids_in_result))
+        ids = list(map(lambda x: str(x), ids))
+        non_price_prods = list(set(ids).difference(set(ids_in_result)))
+
+        with db_session:
+            for non_price in non_price_prods:
+                now = datetime.utcnow()
+                DB.Game[non_price].priceCheckout = now
+                DB.Game[non_price].finalPriceCheckout = now
 
     @property
     def product_id(self):

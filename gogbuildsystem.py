@@ -55,6 +55,8 @@ class RepoProductV1(GOGBase):
 
     def save_or_update(self):
         deps = list()
+        if not orm.exists(prod for prod in DB.Game if prod.id == self.game):
+            DB.Game(id=self.game)
         if self.dependencies is not None:
             for dep in self.dependencies:
                 if orm.exists(d for d in DB.RepositoryV1Dependency if d.name == dep.strip()):
@@ -161,7 +163,7 @@ class DepotV1(GOGBase):
 
     @property
     def size(self):
-        return self.__size
+        return str(self.__size)
 
     def save_or_update(self, repov1):
         dict_data = self.to_dict()
@@ -276,6 +278,8 @@ class RepoProductV2(GOGBase):
         return self.__temp_exec
 
     def save_or_update(self):
+        if not orm.exists(prod for prod in DB.Game if prod.id == self.product):
+            DB.Game(id=self.product)
         return DB.RepositoryProductV2.save_into_db(**self.to_dict())
 
 
